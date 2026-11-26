@@ -13,7 +13,7 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/spreadsheets.readonly'
+  'https://www.googleapis.com/auth/spreadsheets'
 ].join(' ');
 
 const MAX_DOC_BYTES = 900 * 1024;
@@ -180,13 +180,16 @@ async function dbWrite(env, user, b) {
     .bind(path, coll, id, text, ts);
   const wipUpdate = op === 'add' && coll === 'updates' && wipSheetEnabled(env)
     ? prepareWipSheetUpdate(env.DB, id, data, user.email, ts) : null;
+  let wipSync;
   if (wipUpdate) {
     await ensureWipOutbox(env.DB);
-    await env.DB.batch([save, wipUpdate]);
+    const [, queued] = await env.DB.batch([save, wipUpdate]);
+    wipSync = queued.meta.changes ? 'queued' : 'not_queued';
   } else {
     await save.run();
+    if (op === 'add' && coll === 'updates') wipSync = 'not_queued';
   }
-  return json({ path, coll, id, ts, deleted: false, data });
+  return json({ path, coll, id, ts, deleted: false, data, wipSync });
 }
 
 /* ------------------------------------------------------------------ secrets helpers */
@@ -258,7 +261,7 @@ async function googleCallback(env, user, url) {
   const id = t.id_token ? b64urlJson(t.id_token.split('.')[1]) : {};
   if (low(id.email) !== user.email)
     return page('Use your own work account', `You signed in to Google as ${id.email || 'another account'}. Connect ${user.email} instead.`);
-  const missing = ['gmail.readonly', 'calendar', 'drive', 'spreadsheets.readonly'].filter((s) => !String(t.scope || '').includes(s));
+  const missing = ['gmail.readonly', 'calendar', 'drive', 'auth/spreadsheets'].filter((s) => !String(t.scope || '').includes(s));
   await env.DB.prepare('INSERT INTO google_tokens (email, refresh_enc, scope, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET refresh_enc = excluded.refresh_enc, scope = excluded.scope, updated_at = excluded.updated_at')
     .bind(user.email, await encrypt(env, t.refresh_token), t.scope || '', Date.now()).run();
   if (id.name) await env.DB.prepare('INSERT INTO users (email, name, seen_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET name = excluded.name').bind(user.email, id.name, Date.now()).run();
