@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="/icons/fox-192.png">
 <link rel="apple-touch-icon" href="/icons/fox-180.png">
 <style>body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<script src="/bridge.js?v=6"></script>
+<script src="/bridge.js?v=7"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3063,7 +3063,7 @@ function updateSheet(pid) {
     '<div class="field"><label for="uf-done">What has been done</label><textarea class="input" id="uf-done" name="done" placeholder="1. Proposal and quote submitted"></textarea></div>' +
     '<div class="field"><label for="uf-next">Next action steps</label><textarea class="input" id="uf-next" name="next" placeholder="1. Follow up on the proposal results"></textarea></div></div>' +
     '<div class="field"><label for="uf-link">Link (optional)</label><input class="input" id="uf-link" name="link" type="url" placeholder="https://"></div>' +
-    '<p class="small muted" style="margin:0 0 4px">New posts sync to the Black Fox Updates tab when Sheets sync is configured.</p>' +
+    '<p class="small muted" style="margin:0 0 4px">Posting syncs both weeks to the matching project row in Black Fox Updates.</p>' +
     '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Cancel</button><button class="btn primary" type="submit">Post update</button></div></form>');
   updFill(pid);
 }
@@ -3079,6 +3079,24 @@ function updFill(pid) {
   var wk = weeks(p);
   updSet(wk || { prev: {}, cur: {} }, wk ? 'Loading the WIP sheet…' : 'Checking the WIP sheet…');
   var form = document.getElementById('updForm'); if (form) { form.dataset.dirty = ''; if (!form.dataset.watch) { form.dataset.watch = '1'; form.addEventListener('input', function (ev) { if (ev.target && ev.target.tagName === 'TEXTAREA') form.dataset.dirty = '1'; }); } }
+  if (window.claude && typeof window.claude.readWipProjectWeeks === 'function') {
+    window.claude.readWipProjectWeeks(pid).then(function (r) {
+      if (tok !== UPD_TOK || document.getElementById('updForm') !== form || form.dataset.dirty) return;
+      if (r.status === 'loaded' || r.status === 'pending') {
+        updSet({ prev: splitUpdate(r.previous), cur: splitUpdate(r.next) },
+          r.status === 'pending' ? 'Latest post is waiting to sync.' : 'Loaded from Black Fox Updates, row ' + r.number + '.');
+      } else {
+        updSet(wk || { prev: {}, cur: {} }, r.status === 'missing' ?
+          'No unique project row in Black Fox Updates. Posts still appear in the update log.' :
+          'Black Fox Updates sync is unavailable. Showing what the app has.');
+      }
+    }, function () {
+      if (tok === UPD_TOK && document.getElementById('updForm') === form) {
+        document.getElementById('uf-src').textContent = 'Could not load Black Fox Updates. Showing what the app has.';
+      }
+    });
+    return;
+  }
   wipRow(p).then(function (r) {
     if (tok !== UPD_TOK || !document.getElementById('updForm') || form.dataset.dirty) return;
     if (r.row < 0) { updSet(wk || { prev: {}, cur: {} }, 'Not in the WIP sheet yet. Posting adds a row.'); return; }
