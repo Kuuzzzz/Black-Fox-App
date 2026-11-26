@@ -30,11 +30,15 @@ export function prepareWipSheetUpdate(db, id, data, email, ts) {
     ? data.date : new Date(ts).toISOString().slice(0, 10);
   return db.prepare(`INSERT INTO wip_sheet_outbox (update_id, cells, queued_at)
     SELECT ?, json_array(?, COALESCE(NULLIF(json_extract(project.data, '$.name'), ''), ?),
-      COALESCE(NULLIF(users.name, ''), 'Team member'), ?, ?, ?, ?), ?
+      COALESCE(NULLIF(users.name, ''), 'Team member'), ?, ?, ?, ?,
+      CASE WHEN ? THEN json_object('id', ?, 'client', json_extract(project.data, '$.client'),
+        'brand', json_extract(project.data, '$.brand'), 'name', json_extract(project.data, '$.name'),
+        'previous', ?, 'next', ?) END), ?
     FROM docs AS project LEFT JOIN users ON users.email = ?
     WHERE project.path = ? AND project.deleted = 0`)
     .bind(id, date, data.projectId, cellText(data.done), cellText(data.next), cellText(data.link),
-      id, ts, email, 'projects/' + data.projectId);
+      id, data.weeks === true ? 1 : 0, data.projectId, weekCell(data.prevDone, data.prevNext),
+      weekCell(data.done, data.next), ts, email, 'projects/' + data.projectId);
 }
 
 function base64Url(bytes) {
@@ -82,6 +86,79 @@ async function sheetsRequest(url, token, init = {}) {
   return res;
 }
 
+
+function weekCell(done, next) {
+  done = typeof done === 'string' ? done.trim() : '';
+  next = typeof next === 'string' ? next.trim() : '';
+  if (!done && !next) return '';
+  return cellText('What Has Been Done:\n' + done + '\n\nNext Action Steps:\n' + next);
+}
+
+const normalize = value => String(value ?? '').normalize('NFKC')
+  .replace(/[\u2018\u2019]/g, "'").trim().replace(/\s+/g, ' ').toLowerCase();
+
+function findProjectRow(rows, project) {
+  const client = normalize(project.client);
+  const brand = normalize(project.brand || project.client);
+  const name = normalize(project.name);
+  if (!client || !name) return null;
+  let result = null;
+  for (const [index, row] of rows.entries()) {
+    if (normalize(row[0]) !== client || normalize(row[1] || row[0]) !== brand || normalize(row[2]) !== name) continue;
+    if (result) return null; // Ambiguous matches stay in the update log.
+    result = { number: index + 1, previous: row[12] || '', next: row[13] || '' };
+  }
+  return result;
+}
+
+const sheetRange = cells => "'" + TAB + "'!" + cells;
+const encodedRange = cells => encodeURIComponent(sheetRange(cells));
+const sheetUrl = env => 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(env.WIP_SHEET_ID);
+
+async function projectRows(env, token) {
+  const res = await sheetsRequest(sheetUrl(env) + '/values/' + encodedRange('A:N'), token);
+  const { values = [] } = await res.json();
+  return values;
+}
+
+export async function readWipProjectWeeks(env, projectId) {
+  const record = await env.DB.prepare('SELECT data FROM docs WHERE path = ? AND deleted = 0')
+    .bind('projects/' + projectId).first();
+  if (!record) return { status: 'missing' };
+  const token = await serviceToken(env.WIP_SHEETS_SERVICE_ACCOUNT);
+  const row = findProjectRow(await projectRows(env, token), JSON.parse(record.data));
+  if (!row) return { status: 'missing' };
+
+  await ensureWipOutbox(env.DB);
+  const pending = await env.DB.prepare(`SELECT cells FROM wip_sheet_outbox
+    WHERE json_extract(cells, '$[7].id') = ? ORDER BY queued_at DESC, update_id DESC LIMIT 1`)
+    .bind(projectId).first();
+  if (pending) {
+    const update = JSON.parse(pending.cells)[7];
+    return { status: 'pending', ...row, previous: update.previous, next: update.next };
+  }
+  return { status: 'loaded', ...row };
+}
+
+async function writeProjectWeeks(env, token, pending) {
+  const updates = pending.map(cells => cells[7]).filter(Boolean);
+  if (!updates.length) return;
+  const rows = await projectRows(env, token);
+  const writes = new Map();
+  for (const update of updates) {
+    const row = findProjectRow(rows, update);
+    if (!row) continue;
+    writes.set(row.number, { range: sheetRange('M' + row.number + ':N' + row.number),
+      values: [[update.previous, update.next]] });
+  }
+  if (writes.size) {
+    await sheetsRequest(sheetUrl(env) + '/values:batchUpdate', token, {
+      method: 'POST',
+      body: JSON.stringify({ valueInputOption: 'RAW', data: [...writes.values()] })
+    });
+  }
+}
+
 export async function syncWipSheet(env) {
   if (!wipSheetEnabled(env)) return;
   const db = env.DB;
@@ -91,27 +168,29 @@ export async function syncWipSheet(env) {
   const { results: rows } = await db.prepare(`UPDATE wip_sheet_outbox
     SET lease_until = ?, attempts = attempts + 1
     WHERE update_id IN (
-      SELECT update_id FROM wip_sheet_outbox WHERE lease_until <= ? ORDER BY queued_at, update_id LIMIT 30
-    ) RETURNING update_id, cells, attempts, queued_at`).bind(now + 180000, now).all();
+      SELECT update_id FROM wip_sheet_outbox WHERE lease_until <= ?
+        AND NOT EXISTS (SELECT 1 FROM wip_sheet_outbox WHERE lease_until > ?)
+      ORDER BY queued_at, update_id LIMIT 30
+    ) RETURNING update_id, cells, attempts, queued_at`).bind(now + 180000, now, now).all();
   if (!rows.length) return;
   rows.sort((a, b) => a.queued_at - b.queued_at || a.update_id.localeCompare(b.update_id));
 
   const token = await serviceToken(env.WIP_SHEETS_SERVICE_ACCOUNT);
-  const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(env.WIP_SHEET_ID) + '/values/';
-  const range = cells => encodeURIComponent("'" + TAB + "'!" + cells);
+  const base = sheetUrl(env) + '/values/';
 
   // An append can succeed even if its response is lost. Read back the IDs before retrying.
   let existing = new Set();
   if (rows.some(row => row.attempts > 1)) {
-    const res = await sheetsRequest(base + range('AD7:AD'), token);
+    const res = await sheetsRequest(base + encodedRange('AD7:AD'), token);
     const { values = [] } = await res.json();
     existing = new Set(values.map(([id]) => id));
   }
-  const pending = rows.filter(row => !existing.has(row.update_id));
+  const pending = rows.filter(row => !existing.has(row.update_id)).map(row => JSON.parse(row.cells));
   if (pending.length) {
-    await sheetsRequest(base + range('X6:AD') + ':append?valueInputOption=RAW&insertDataOption=OVERWRITE', token, {
+    await writeProjectWeeks(env, token, pending);
+    await sheetsRequest(base + encodedRange('X6:AD') + ':append?valueInputOption=RAW&insertDataOption=OVERWRITE', token, {
       method: 'POST',
-      body: JSON.stringify({ values: pending.map(row => JSON.parse(row.cells)) })
+      body: JSON.stringify({ values: pending.map(cells => cells.slice(0, 7)) })
     });
   }
   await db.prepare('DELETE FROM wip_sheet_outbox WHERE update_id IN (' + rows.map(() => '?').join(',') + ')')
