@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="/icons/fox-192.png">
 <link rel="apple-touch-icon" href="/icons/fox-180.png">
 <style>body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<script src="/bridge.js"></script>
+<script src="/bridge.js?v=3"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1218,7 +1218,7 @@ VIEWS['my-day'] = {
     var first = (S.me.name || 'there').split(' ')[0];
     var hello = $('#hello'); if (hello && hello.textContent !== first) hello.textContent = first;
     region('dayBanner', loadingNote() + (S.dbError ? '<div class="banner"><span class="grow">' + esc(S.dbError) + '</span></div>' : ''));
-    region('daySub', esc(S.isOwner ? 'Approvals and next actions first. Your inbox and team calendar stay private to you.' : 'Your projects and next actions this week.'));
+    region('daySub', esc(S.isOwner && S.google !== false ? 'Approvals and next actions first. Your inbox and team calendar stay private to you.' : 'Your projects and next actions this week.'));
     var t = todayIso(), wk = addDays(t, 7);
     var stale = live().filter(isStale);
     if (S.isOwner && S.google) {
@@ -1236,7 +1236,7 @@ VIEWS['my-day'] = {
         halo(mine.filter(isStale).length, 'Need my update', mine.filter(isStale).length / Math.max(mine.length, 1), '#team', true) +
         halo(soon.length, 'Live in 30 days', soon.length ? 1 : 0, '#clients'));
       region('dayLeft', nextCard(mine.length ? mine : live(), mine.length ? 'My next actions' : 'Team next actions'));
-      region('dayRight', comingCard(soon) + '<div class="card"><span class="lock">' + I.lock + 'Heng\'s inbox and team calendar are private to Heng.</span></div>');
+      region('dayRight', comingCard(soon) + (S.google === false ? '' : '<div class="card"><span class="lock">' + I.lock + 'Heng\'s inbox and team calendar are private to Heng.</span></div>'));
     }
   }
 };
