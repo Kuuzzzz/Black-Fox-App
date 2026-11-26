@@ -3,6 +3,10 @@
   "name": "black-fox-center",
   "main": "src/worker.js",
   "compatibility_date": "2025-06-01",
+  // The app's address. Cloudflare creates the DNS record for it on deploy.
+  "routes": [{ "pattern": "blackfox.7mbetlink.com", "custom_domain": true }],
+  "workers_dev": true,
+  "preview_urls": false,
   "assets": { "directory": "./public", "binding": "ASSETS", "not_found_handling": "single-page-application" },
   "d1_databases": [
     // Step 4 of SETUP.md: paste the database_id that "npx wrangler d1 create black-fox-center" prints.
