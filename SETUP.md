@@ -170,8 +170,8 @@ Team WIP needs your WIP Sheet link in **Settings**. It was imported with the res
 ## Optional: export Team WIP updates to Google Sheets
 
 1. Enable the Google Sheets API in a Google Cloud project and create a dedicated service account.
-2. Share the destination workbook with that service account as Editor. Copy the Heng’s Team tab to **Black Fox Updates** and reserve X6:AD for the app’s update log. Set these headings in X6:AD6: Date, Project, Team member, Work done, Next actions, Link, Update ID. Keep the Update ID column available so retries can identify updates that already reached Sheets.
+2. Share the destination workbook with that service account as Editor. Copy the Heng’s Team tab to **Black Fox Updates**. The Worker writes only to the Previous Week and Next Week cells in columns M and N of a uniquely matched project row.
 3. In the Cloudflare Worker settings, add two Worker secrets: `WIP_SHEET_ID` for the destination spreadsheet ID and `WIP_SHEETS_SERVICE_ACCOUNT` for the service account JSON. Keep the JSON out of Git and chat. Deploy the updated Worker with its Cron Trigger and confirm the two bindings are present.
 4. Post a Team WIP update and allow about one minute for its row to appear. If it does not appear, check the Worker’s scheduled invocation logs. Failed batches retry after their lease expires.
 
-The export starts when both bindings are present. It sends newly posted Team WIP updates only. Existing updates and imports stay in the app. The Worker saves each app update and its pending export in the same D1 transaction. Users can post updates without individually connecting Google.
+The export starts when both bindings are present. It sends newly posted Team WIP updates with a matching project row. Existing updates and imports stay in the app. The Worker saves each app update and its pending export in the same D1 transaction. Users can post updates without individually connecting Google.
