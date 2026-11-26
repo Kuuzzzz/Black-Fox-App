@@ -3087,7 +3087,7 @@ function updFill(pid) {
           r.status === 'pending' ? 'Latest post is waiting to sync.' : 'Loaded from Black Fox Updates, row ' + r.number + '.');
       } else {
         updSet(wk || { prev: {}, cur: {} }, r.status === 'missing' ?
-          'No unique project row in Black Fox Updates. Posts still appear in the update log.' :
+          'No unique project row in Black Fox Updates. Posts are saved in the app.' :
           'Black Fox Updates sync is unavailable. Showing what the app has.');
       }
     }, function () {
