@@ -69,7 +69,7 @@ npx wrangler d1 execute black-fox-center --remote --file=schema.sql
 ## Step 5: First deploy (2 min)
 
 ```
-npx wrangler secret put TOKEN_KEY
+(optional) npx wrangler secret put TOKEN_KEY
 ```
 
 It asks for a value. Type a long random password of 30 or more letters and numbers, and keep it somewhere safe. It locks everyone's Google connection. If you ever change it, everyone just presses **Connect Google** once more.

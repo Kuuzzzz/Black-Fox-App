@@ -175,9 +175,21 @@ async function dbWrite(env, user, b) {
 }
 
 /* ------------------------------------------------------------------ secrets helpers */
+/* The key that locks Google connections: the TOKEN_KEY secret if one is set, otherwise a random key
+   the server makes once and keeps in the database (which only this Worker can read). */
+let autoKey = '';
+async function tokenKey(env) {
+  if (env.TOKEN_KEY) return env.TOKEN_KEY;
+  if (autoKey) return autoKey;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)').run();
+  const fresh = toB64(crypto.getRandomValues(new Uint8Array(32)));
+  await env.DB.prepare('INSERT OR IGNORE INTO meta (k, v) VALUES (?, ?)').bind('token_key', fresh).run();
+  const row = await env.DB.prepare('SELECT v FROM meta WHERE k = ?').bind('token_key').first();
+  autoKey = row.v;
+  return autoKey;
+}
 async function keyFrom(env, purpose) {
-  if (!env.TOKEN_KEY) throw new HttpError(500, 'not_configured', 'TOKEN_KEY secret is missing.');
-  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(purpose + ':' + env.TOKEN_KEY));
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(purpose + ':' + await tokenKey(env)));
   return purpose === 'enc' ? crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt'])
     : crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
