@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="/icons/fox-192.png">
 <link rel="apple-touch-icon" href="/icons/fox-180.png">
 <style>body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<script src="/bridge.js?v=5"></script>
+<script src="/bridge.js?v=6"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3063,7 +3063,7 @@ function updateSheet(pid) {
     '<div class="field"><label for="uf-done">What has been done</label><textarea class="input" id="uf-done" name="done" placeholder="1. Proposal and quote submitted"></textarea></div>' +
     '<div class="field"><label for="uf-next">Next action steps</label><textarea class="input" id="uf-next" name="next" placeholder="1. Follow up on the proposal results"></textarea></div></div>' +
     '<div class="field"><label for="uf-link">Link (optional)</label><input class="input" id="uf-link" name="link" type="url" placeholder="https://"></div>' +
-    '<p class="small muted" style="margin:0 0 4px">Posting also writes both columns into this project\'s row in the WIP sheet.</p>' +
+    '<p class="small muted" style="margin:0 0 4px">New posts sync to the Black Fox Updates tab when Sheets sync is configured.</p>' +
     '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Cancel</button><button class="btn primary" type="submit">Post update</button></div></form>');
   updFill(pid);
 }
