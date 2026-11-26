@@ -15,6 +15,7 @@
   "vars": {
     "OWNER_EMAIL": "sokheng@hybrid-ad.biz",   // owner: sees the private inbox, calendar, AM Brief and Kuro reminders
     "ADMIN_EMAILS": "",                       // comma-separated: people who can see budgets and edit Training
+    "AUTH_MODE": "accounts",                // people create their own account (name, email, password)
     "ALLOWED_DOMAIN": "",                     // empty = any email may sign in
     "ACCESS_TEAM_DOMAIN": "silent-smoke-48df.cloudflareaccess.com",               // e.g. hybrid.cloudflareaccess.com  (step 6)
     "ACCESS_AUD": "d7cf29023afc50f8052df1bfd55a41bc779ee66a0ac3db1c1cb7eddabf4f01e8",                       // the Application Audience (AUD) tag from Cloudflare Access (step 6)

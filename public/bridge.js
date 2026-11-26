@@ -28,8 +28,14 @@
   }
   function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
 
+  /* Signed in? If not, show the sign-in screen and hold the app until the person signs in (the page then reloads). */
   var meP = null;
-  function getMe() { return meP || (meP = api('/me')); }
+  function getMe() {
+    return meP || (meP = api('/me').catch(function (e) {
+      if (e && e.code === 'session_expired') { showLogin(); return new Promise(function () {}); }
+      meP = null; throw e;
+    }));
+  }
 
   /* ---------------------------------------------------------------- db: documents + live updates (polling) */
   var store = {};            /* path -> { coll, id, data, ts, deleted } */
@@ -378,15 +384,70 @@
   window.claude = {
     bfc: true,
     use: function (name) {
-      if (name === 'db') { if (!polling) { polling = true; poll(); } return Promise.resolve(db); }
-      if (name === 'user') return Promise.resolve(user);
+      if (name === 'db') return getMe().then(function () { if (!polling) { polling = true; poll(); } return db; });
+      if (name === 'user') return getMe().then(function () { return user; });
       if (name === 'mcp') return getMe().then(function (m) { if (m.googleReady && !m.google) showConnect('server_not_connected'); return mcp; }, function () { return mcp; });
       if (name === 'sample') return getMe().then(function (m) { if (!m.ai) throw err('not_granted'); return sample; });
       return Promise.reject(err('not_declared', name));
     },
+    signOut: function () { return api('/auth/logout', { method: 'POST', body: {} }).then(function () { location.reload(); }, function () { location.reload(); }); },
     google: { connect: function () { location.href = '/api/google/start'; }, disconnect: function () { return api('/google/disconnect', { method: 'POST' }).then(function () { location.reload(); }); } }
   };
   if (/google=connected/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+
+  /* ---------------------------------------------------------------- sign in / create account */
+  function showLogin() {
+    if (document.getElementById('bfcLogin')) return;
+    function put() {
+      if (!document.body) return setTimeout(put, 50);
+      var el = document.createElement('div');
+      el.id = 'bfcLogin';
+      el.innerHTML = '<form class="bfc-card" novalidate>' +
+        '<img src="/icons/fox-192.png" alt="" class="bfc-logo"><h1>Black Fox <span>Center</span></h1>' +
+        '<div class="bfc-tabs" role="tablist"><button type="button" data-m="in" class="on">Sign in</button><button type="button" data-m="up">Create account</button></div>' +
+        '<label class="bfc-f bfc-name" hidden>Your name<input name="name" autocomplete="name" maxlength="60"></label>' +
+        '<label class="bfc-f">Email<input name="email" type="email" autocomplete="email" required></label>' +
+        '<label class="bfc-f">Password<input name="password" type="password" autocomplete="current-password" required minlength="8"></label>' +
+        '<p class="bfc-hint" hidden>At least 8 characters.</p>' +
+        '<p class="bfc-err" role="alert"></p>' +
+        '<button type="submit" class="bfc-go">Sign in</button></form>';
+      document.body.appendChild(el);
+      var f = el.querySelector('form'), mode = 'in';
+      function setMode(m) {
+        mode = m;
+        el.querySelectorAll('.bfc-tabs button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === m); });
+        el.querySelector('.bfc-name').hidden = m !== 'up'; el.querySelector('.bfc-hint').hidden = m !== 'up';
+        f.password.setAttribute('autocomplete', m === 'up' ? 'new-password' : 'current-password');
+        el.querySelector('.bfc-go').textContent = m === 'up' ? 'Create account' : 'Sign in';
+        el.querySelector('.bfc-err').textContent = '';
+      }
+      el.querySelectorAll('.bfc-tabs button').forEach(function (b) { b.onclick = function () { setMode(b.getAttribute('data-m')); }; });
+      f.onsubmit = function (ev) {
+        ev.preventDefault();
+        var go = el.querySelector('.bfc-go'), err = el.querySelector('.bfc-err');
+        err.textContent = ''; go.disabled = true;
+        var body = { email: f.email.value, password: f.password.value };
+        if (mode === 'up') body.name = f.name.value;
+        api('/auth/' + (mode === 'up' ? 'signup' : 'login'), { method: 'POST', body: body }).then(function () { location.reload(); }, function (e) {
+          go.disabled = false;
+          if (e && e.code === 'account_exists') setMode('in');
+          err.textContent = (e && e.message && e.message !== e.code) ? e.message : 'Could not sign in. Check your connection and try again.';
+        });
+      };
+      setTimeout(function () { f.email.focus(); }, 50);
+    }
+    put();
+  }
+  var ls = document.createElement('style');
+  ls.textContent = '#bfcLogin{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;background:radial-gradient(120% 80% at 50% 0%,rgba(79,216,255,.12),transparent 60%),#05070A;color:#E6F1F7;font:14px/1.45 Inter,system-ui,sans-serif;overflow:auto}' +
+    '.bfc-card{width:min(380px,100%);background:#0B1117;border:1px solid #17222C;border-radius:20px;padding:26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}' +
+    '.bfc-logo{display:block;width:64px;height:64px;border-radius:16px;margin:0 auto 10px;filter:drop-shadow(0 0 14px rgba(79,216,255,.35))}' +
+    '#bfcLogin h1{margin:0 0 18px;text-align:center;font:700 22px/1.1 Rajdhani,"Arial Narrow",sans-serif;letter-spacing:.12em;text-transform:uppercase}#bfcLogin h1 span{color:#4FD8FF}' +
+    '.bfc-tabs{display:flex;padding:3px;border-radius:999px;background:#070B0F;border:1px solid #22313D;margin-bottom:16px}.bfc-tabs button{flex:1;border:0;background:none;color:#9AABB8;height:34px;border-radius:999px;font:700 13px Rajdhani,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}.bfc-tabs button.on{background:#4FD8FF;color:#041016}' +
+    '.bfc-f{display:block;margin-bottom:12px;font:600 12px Rajdhani,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9AABB8}.bfc-f[hidden]{display:none}.bfc-f input{display:block;width:100%;box-sizing:border-box;margin-top:6px;min-height:44px;padding:10px 12px;border-radius:12px;border:1px solid #22313D;background:#070B0F;color:#E6F1F7;font:15px Inter,system-ui,sans-serif;letter-spacing:0;text-transform:none}.bfc-f input:focus{outline:none;border-color:#4FD8FF;box-shadow:0 0 0 3px rgba(79,216,255,.14)}' +
+    '.bfc-hint{margin:-6px 0 10px;color:#8A9BA8;font-size:12px}.bfc-hint[hidden]{display:none}.bfc-err{min-height:18px;margin:0 0 10px;color:#FF7A8A;font-size:13px}' +
+    '.bfc-go{width:100%;height:46px;border:0;border-radius:999px;background:#4FD8FF;color:#041016;font:700 15px Rajdhani,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;box-shadow:0 0 22px -4px rgba(79,216,255,.35)}.bfc-go:disabled{opacity:.6}';
+  document.head.appendChild(ls);
 
   /* installable app */
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });

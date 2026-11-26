@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="/icons/fox-192.png">
 <link rel="apple-touch-icon" href="/icons/fox-180.png">
 <style>body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<script src="/bridge.js?v=3"></script>
+<script src="/bridge.js?v=4"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3126,7 +3126,8 @@ function settingsSheet() {
       : '<p>Saves every project, update, brand, training item, budget, setting, AM brief and Kuro setting into one file for the new app.</p>' +
         '<button type="button" class="btn" data-act="bfcExport">' + I.copy + 'Export data</button>') : '') +
     (BFC && S.google === false ? '' : BFC ? '<hr><div class="label" style="margin-bottom:8px">Google account</div><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own Google sign-in.</p><div class="row wrap"><a class="btn sm" href="/api/google/start">Reconnect Google</a><button type="button" class="btn sm ghost" data-act="bfcGoogleOff">Disconnect</button></div>'
-      : '<hr><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own sign-in. Heng\'s inbox and team calendar only ever show to Heng.</p>'));
+      : '<hr><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own sign-in. Heng\'s inbox and team calendar only ever show to Heng.</p>') +
+    (BFC ? '<hr><div class="row between wrap"><span class="small muted">Signed in as ' + esc(S.me.email || '') + '</span><button type="button" class="btn sm" data-act="bfcSignOut">Sign out</button></div>' : ''));
 }
 var BFC = !!(window.claude && window.claude.bfc);
 /* Export: everything this owner can see, as one JSON file, plus the names behind claude.ai user ids */
@@ -3345,6 +3346,7 @@ var ACT = {
   foxDismiss: function () { foxClose(true); },
   bfcExport: function (el) { bfcExport(el); },
   bfcCopy: function () { var t = $('#bfcExportText'); if (!t) return; t.focus(); t.select(); try { navigator.clipboard.writeText(t.value).then(function () { toast('Copied. Paste it into Notepad and save as a .json file.'); }, function () { toast('Press Ctrl+C to copy.'); }); } catch (e) { toast('Press Ctrl+C to copy.'); } },
+  bfcSignOut: function () { if (window.claude && window.claude.signOut) window.claude.signOut(); },
   bfcGoogleOff: function () { if (window.claude && window.claude.google) window.claude.google.disconnect(); },
   roamTap: function () { roamBubble(!S.roam.bub); },
   roamHide: function () { foxPut('roamOff', todayIso()); roamSync(); toast('Kuro will be back tomorrow. Visit the Kuro tab any time.'); },

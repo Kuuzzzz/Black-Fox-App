@@ -22,6 +22,7 @@ export default {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
+      if (url.pathname.startsWith('/api/auth/') && req.method === 'POST') return await auth(req, env, url);
       const user = await currentUser(req, env, url);
       if (!user) return json({ code: 'session_expired', message: 'Not signed in.' }, 401);
       const p = url.pathname;
@@ -72,6 +73,7 @@ async function currentUser(req, env, url) {
   let email = '';
   const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
   if (env.DEV_USER && local) email = low(req.headers.get('x-dev-user') || env.DEV_USER);
+  else if (env.AUTH_MODE === 'accounts') email = await sessionEmail(req, env);
   else {
     if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) throw new HttpError(500, 'not_configured', 'Cloudflare Access is not set up for this app yet (ACCESS_TEAM_DOMAIN / ACCESS_AUD).');
     const token = req.headers.get('cf-access-jwt-assertion') || cookie(req, 'CF_Authorization');
@@ -320,4 +322,85 @@ async function sample(env, user, b) {
     }
   });
   return new Response(r.body.pipeThrough(ts), { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+/* ------------------------------------------------------------------ own accounts (AUTH_MODE = "accounts")
+   Anyone with the link can create an account with name, email and password. Passwords are stored as
+   PBKDF2 hashes; the browser keeps a random session token in an HttpOnly cookie for 30 days. */
+const SESSION_DAYS = 30;
+let authReady = false;
+async function authTables(env) {
+  if (authReady) return;
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS accounts (email TEXT PRIMARY KEY, name TEXT NOT NULL, pass_hash TEXT NOT NULL, salt TEXT NOT NULL, created_at INTEGER)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, email TEXT NOT NULL, expires_at INTEGER NOT NULL)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS login_fails (email TEXT PRIMARY KEY, count INTEGER NOT NULL, first_at INTEGER NOT NULL)')
+  ]);
+  authReady = true;
+}
+async function sha256(text) { return toB64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))); }
+async function hashPassword(password, salt) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64urlBytes(salt), iterations: 100000 }, key, 256);
+  return toB64(new Uint8Array(bits));
+}
+function sessionCookie(token, url, maxAge) {
+  const secure = url.protocol === 'https:' ? '; Secure' : '';
+  return `bfc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+async function newSession(env, email, url, body) {
+  const token = toB64(crypto.getRandomValues(new Uint8Array(32)));
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  await env.DB.prepare('INSERT INTO sessions (token_hash, email, expires_at) VALUES (?, ?, ?)').bind(await sha256(token), email, now + SESSION_DAYS * 864e5).run();
+  return json(body || { ok: true }, 200, { 'set-cookie': sessionCookie(token, url, SESSION_DAYS * 86400) });
+}
+async function sessionEmail(req, env) {
+  const token = cookie(req, 'bfc_session');
+  if (!token) return '';
+  await authTables(env);
+  const row = await env.DB.prepare('SELECT email FROM sessions WHERE token_hash = ? AND expires_at > ?').bind(await sha256(token), Date.now()).first();
+  return row ? row.email : '';
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+async function auth(req, env, url) {
+  if (env.AUTH_MODE !== 'accounts') throw new HttpError(404, 'not_found', 'Accounts are not switched on.');
+  if (!/application\/json/.test(req.headers.get('content-type') || '')) throw new HttpError(400, 'invalid_argument', 'Bad request.');
+  await authTables(env);
+  const b = await readJson(req);
+  const email = low(b.email), password = String(b.password || '');
+  if (url.pathname === '/api/auth/logout') {
+    const token = cookie(req, 'bfc_session');
+    if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(token)).run();
+    return json({ ok: true }, 200, { 'set-cookie': sessionCookie('', url, 0) });
+  }
+  if (!EMAIL_RE.test(email)) throw new HttpError(400, 'invalid_argument', 'Type a valid email address.');
+  const domain = low(env.ALLOWED_DOMAIN);
+  if (domain && !email.endsWith('@' + domain)) throw new HttpError(403, 'forbidden', 'This app is only for @' + domain + ' accounts.');
+  if (url.pathname === '/api/auth/signup') {
+    const name = String(b.name || '').trim().slice(0, 60);
+    if (!name) throw new HttpError(400, 'invalid_argument', 'Type your name.');
+    if (password.length < 8) throw new HttpError(400, 'invalid_argument', 'Use a password of at least 8 characters.');
+    const exists = await env.DB.prepare('SELECT email FROM accounts WHERE email = ?').bind(email).first();
+    if (exists) throw new HttpError(409, 'account_exists', 'There is already an account for this email. Sign in instead.');
+    const salt = toB64(crypto.getRandomValues(new Uint8Array(16)));
+    await env.DB.prepare('INSERT INTO accounts (email, name, pass_hash, salt, created_at) VALUES (?, ?, ?, ?, ?)').bind(email, name, await hashPassword(password, salt), salt, Date.now()).run();
+    await env.DB.prepare('INSERT INTO users (email, name, seen_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET name = excluded.name').bind(email, name, Date.now()).run();
+    return newSession(env, email, url);
+  }
+  if (url.pathname === '/api/auth/login') {
+    const now = Date.now();
+    const f = await env.DB.prepare('SELECT count, first_at FROM login_fails WHERE email = ?').bind(email).first();
+    if (f && now - f.first_at < 15 * 60e3 && f.count >= 8) throw new HttpError(429, 'rate_limited', 'Too many wrong passwords. Wait 15 minutes and try again.');
+    const a = await env.DB.prepare('SELECT pass_hash, salt FROM accounts WHERE email = ?').bind(email).first();
+    const ok = a && (await hashPassword(password, a.salt)) === a.pass_hash;
+    if (!ok) {
+      if (!f || now - f.first_at >= 15 * 60e3) await env.DB.prepare('INSERT INTO login_fails (email, count, first_at) VALUES (?, 1, ?) ON CONFLICT(email) DO UPDATE SET count = 1, first_at = excluded.first_at').bind(email, now).run();
+      else await env.DB.prepare('UPDATE login_fails SET count = count + 1 WHERE email = ?').bind(email).run();
+      throw new HttpError(401, 'wrong_password', a ? 'Wrong password.' : 'No account for this email yet. Create one first.');
+    }
+    await env.DB.prepare('DELETE FROM login_fails WHERE email = ?').bind(email).run();
+    return newSession(env, email, url);
+  }
+  throw new HttpError(404, 'not_found');
 }
