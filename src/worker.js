@@ -5,6 +5,8 @@
  * on every API call, so nobody reaches the data without passing Access.
  */
 
+import { ensureWipOutbox, prepareWipSheetUpdate, syncWipSheet, wipSheetEnabled } from './wip-sheet.js';
+
 const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -18,6 +20,9 @@ const MAX_DOC_BYTES = 900 * 1024;
 const PATH_RE = /^[A-Za-z0-9_.-]{1,120}(\/[A-Za-z0-9_.-]{1,120}){0,7}$/;
 
 export default {
+  async scheduled(_controller, env) {
+    await syncWipSheet(env);
+  },
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
@@ -171,8 +176,16 @@ async function dbWrite(env, user, b) {
   } else if (op !== 'set' && op !== 'add') throw new HttpError(400, 'invalid_argument', 'Bad op.');
   const text = JSON.stringify(data);
   if (text.length > MAX_DOC_BYTES) throw new HttpError(413, 'quota_exceeded', 'This item is too big to save.');
-  await env.DB.prepare('INSERT INTO docs (path, coll, id, data, updated_at, deleted) VALUES (?, ?, ?, ?, ?, 0) ON CONFLICT(path) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, deleted = 0')
-    .bind(path, coll, id, text, ts).run();
+  const save = env.DB.prepare('INSERT INTO docs (path, coll, id, data, updated_at, deleted) VALUES (?, ?, ?, ?, ?, 0) ON CONFLICT(path) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, deleted = 0')
+    .bind(path, coll, id, text, ts);
+  const wipUpdate = op === 'add' && coll === 'updates' && wipSheetEnabled(env)
+    ? prepareWipSheetUpdate(env.DB, id, data, user.email, ts) : null;
+  if (wipUpdate) {
+    await ensureWipOutbox(env.DB);
+    await env.DB.batch([save, wipUpdate]);
+  } else {
+    await save.run();
+  }
   return json({ path, coll, id, ts, deleted: false, data });
 }
 

@@ -12,6 +12,7 @@
     // Step 4 of SETUP.md: paste the database_id that "npx wrangler d1 create black-fox-center" prints.
     { "binding": "DB", "database_name": "black-fox-center", "database_id": "2512c287-dd5f-408b-81b8-2434474963fd" }
   ],
+  "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "OWNER_EMAIL": "sokheng@hybrid-ad.biz,vengchhan2302@gmail.com",   // owner: sees the private inbox, calendar, AM Brief and Kuro reminders
     "ADMIN_EMAILS": "",                       // comma-separated: people who can see budgets and edit Training
