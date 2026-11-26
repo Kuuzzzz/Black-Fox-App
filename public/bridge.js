@@ -102,7 +102,7 @@
     },
     collection: function (coll) {
       return {
-        add: function (d) { return write('add', coll, d).then(function (row) { return { id: row.id }; }); },
+        add: function (d) { return write('add', coll, d).then(function (row) { return { id: row.id, wipSync: row.wipSync }; }); },
         doc: function (id) { return db.doc(coll + '/' + id); },
         get: function () { return new Promise(function (res) { whenLoaded(function () { res(snapColl(coll)); }); }); },
         onSnapshot: function (cb, onErr) { return on(collL, coll, cb, snapColl, onErr); }
