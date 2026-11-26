@@ -6,10 +6,10 @@
   "assets": { "directory": "./public", "binding": "ASSETS", "not_found_handling": "single-page-application" },
   "d1_databases": [
     // Step 4 of SETUP.md: paste the database_id that "npx wrangler d1 create black-fox-center" prints.
-    { "binding": "DB", "database_name": "black-fox-center", "database_id": "PASTE-YOUR-DATABASE-ID-HERE" }
+    { "binding": "DB", "database_name": "black-fox-center", "database_id": "2512c287-dd5f-408b-81b8-2434474963fd" }
   ],
   "vars": {
-    "OWNER_EMAIL": "heng@hybrid-ad.biz",      // Heng: sees the private inbox, calendar, AM Brief and Kuro reminders
+    "OWNER_EMAIL": "sokheng@hybrid-ad.biz",   // owner: sees the private inbox, calendar, AM Brief and Kuro reminders
     "ADMIN_EMAILS": "",                       // comma-separated: people who can see budgets and edit Training
     "ALLOWED_DOMAIN": "hybrid-ad.biz",
     "ACCESS_TEAM_DOMAIN": "",                 // e.g. hybrid.cloudflareaccess.com  (step 6)
