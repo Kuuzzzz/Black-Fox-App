@@ -96,13 +96,13 @@ export async function syncWipSheet(env) {
   // An append can succeed even if its response is lost. Read back the IDs before retrying.
   let existing = new Set();
   if (rows.some(row => row.attempts > 1)) {
-    const res = await sheetsRequest(base + range('G2:G'), token);
+    const res = await sheetsRequest(base + range('AD7:AD'), token);
     const { values = [] } = await res.json();
     existing = new Set(values.map(([id]) => id));
   }
   const pending = rows.filter(row => !existing.has(row.update_id));
   if (pending.length) {
-    await sheetsRequest(base + range('A1:G') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', token, {
+    await sheetsRequest(base + range('X6:AD') + ':append?valueInputOption=RAW&insertDataOption=OVERWRITE', token, {
       method: 'POST',
       body: JSON.stringify({ values: pending.map(row => JSON.parse(row.cells)) })
     });
