@@ -1,4 +1,4 @@
-// A durable, one-way export of newly posted Team WIP updates.
+// Durable sync of posted Team WIP updates to their project rows.
 const TAB = 'Black Fox Updates';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
@@ -105,7 +105,7 @@ function findProjectRow(rows, project) {
   let result = null;
   for (const [index, row] of rows.entries()) {
     if (normalize(row[0]) !== client || normalize(row[1] || row[0]) !== brand || normalize(row[2]) !== name) continue;
-    if (result) return null; // Ambiguous matches stay in the update log.
+    if (result) return null; // Never pick between multiple matching rows.
     result = { number: index + 1, previous: row[12] || '', next: row[13] || '' };
   }
   return result;
@@ -156,17 +156,15 @@ function weekTextRuns(text) {
   return runs;
 }
 
-function sheetCells(sheetId, rowIndex, columnIndex, values, richText = false) {
+function projectWeekCells(sheetId, rowNumber, update) {
   return {
     updateCells: {
-      start: { sheetId, rowIndex, columnIndex },
-      rows: values.map(row => ({ values: row.map(text => {
-        if (text === '') return {};
-        const cell = { userEnteredValue: { stringValue: text } };
-        if (richText) cell.textFormatRuns = weekTextRuns(text);
-        return cell;
-      }) })),
-      fields: richText ? 'userEnteredValue,textFormatRuns' : 'userEnteredValue'
+      start: { sheetId, rowIndex: rowNumber - 1, columnIndex: 12 },
+      rows: [{ values: [update.previous, update.next].map(text => text ? {
+        userEnteredValue: { stringValue: text },
+        textFormatRuns: weekTextRuns(text)
+      } : {}) }],
+      fields: 'userEnteredValue,textFormatRuns'
     }
   };
 }
@@ -179,25 +177,17 @@ async function projectWeekWrites(env, token, sheetId, pending) {
   for (const update of updates) {
     const row = findProjectRow(rows, update);
     if (!row) continue;
-    writes.set(row.number, sheetCells(sheetId, row.number - 1, 12, [[update.previous, update.next]], true));
+    writes.set(row.number, projectWeekCells(sheetId, row.number, update));
   }
   return [...writes.values()];
 }
 
-async function ensureLogCapacity(env, token, lastRow) {
-  const url = sheetUrl(env);
-  const fields = 'sheets(properties(sheetId,title,gridProperties(rowCount)))';
-  const res = await sheetsRequest(url + '?fields=' + encodeURIComponent(fields), token);
+async function wipTabId(env, token) {
+  const fields = encodeURIComponent('sheets(properties(sheetId,title))');
+  const res = await sheetsRequest(sheetUrl(env) + '?fields=' + fields, token);
   const { sheets = [] } = await res.json();
   const tab = sheets.find(sheet => sheet.properties.title === TAB)?.properties;
   if (!tab) throw new Error('Black Fox Updates tab is missing.');
-  const extra = lastRow - tab.gridProperties.rowCount;
-  if (extra > 0) {
-    await sheetsRequest(url + ':batchUpdate', token, {
-      method: 'POST',
-      body: JSON.stringify({ requests: [{ appendDimension: { sheetId: tab.sheetId, dimension: 'ROWS', length: Math.max(100, extra) } }] })
-    });
-  }
   return tab.sheetId;
 }
 
@@ -217,25 +207,16 @@ export async function syncWipSheet(env) {
   if (!rows.length) return;
   rows.sort((a, b) => a.queued_at - b.queued_at || a.update_id.localeCompare(b.update_id));
 
-  const token = await serviceToken(env.WIP_SHEETS_SERVICE_ACCOUNT);
-  const base = sheetUrl(env) + '/values/';
-
-  // Use an explicit row below the last occupied log cell. Google append's table detection
-  // can mistake the wide copied WIP layout for part of this separate log.
-  const res = await sheetsRequest(base + encodedRange('X6:AD'), token);
-  const { values: log = [] } = await res.json();
-  const existing = new Set(log.slice(1).map(cells => cells[6]).filter(Boolean));
-  const pending = rows.filter(row => !existing.has(row.update_id)).map(row => JSON.parse(row.cells));
-  if (pending.length) {
-    const firstRow = Math.max(7, 6 + log.length);
-    const lastRow = firstRow + pending.length - 1;
-    const sheetId = await ensureLogCapacity(env, token, lastRow);
-    const requests = await projectWeekWrites(env, token, sheetId, pending);
-    requests.push(sheetCells(sheetId, firstRow - 1, 23, pending.map(cells => cells.slice(0, 7))));
-    await sheetsRequest(sheetUrl(env) + ':batchUpdate', token, {
-      method: 'POST',
-      body: JSON.stringify({ requests })
-    });
+  const pending = rows.map(row => JSON.parse(row.cells));
+  if (pending.some(cells => cells[7])) {
+    const token = await serviceToken(env.WIP_SHEETS_SERVICE_ACCOUNT);
+    const requests = await projectWeekWrites(env, token, await wipTabId(env, token), pending);
+    if (requests.length) {
+      await sheetsRequest(sheetUrl(env) + ':batchUpdate', token, {
+        method: 'POST',
+        body: JSON.stringify({ requests })
+      });
+    }
   }
   await db.prepare('DELETE FROM wip_sheet_outbox WHERE update_id IN (' + rows.map(() => '?').join(',') + ')')
     .bind(...rows.map(row => row.update_id)).run();
