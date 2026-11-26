@@ -1,0 +1,20 @@
+{
+  // Black Fox Center on Cloudflare. See SETUP.md for every step.
+  "name": "black-fox-center",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-06-01",
+  "assets": { "directory": "./public", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "d1_databases": [
+    // Step 4 of SETUP.md: paste the database_id that "npx wrangler d1 create black-fox-center" prints.
+    { "binding": "DB", "database_name": "black-fox-center", "database_id": "PASTE-YOUR-DATABASE-ID-HERE" }
+  ],
+  "vars": {
+    "OWNER_EMAIL": "heng@hybrid-ad.biz",      // Heng: sees the private inbox, calendar, AM Brief and Kuro reminders
+    "ADMIN_EMAILS": "",                       // comma-separated: people who can see budgets and edit Training
+    "ALLOWED_DOMAIN": "hybrid-ad.biz",
+    "ACCESS_TEAM_DOMAIN": "",                 // e.g. hybrid.cloudflareaccess.com  (step 6)
+    "ACCESS_AUD": "",                         // the Application Audience (AUD) tag from Cloudflare Access (step 6)
+    "CLAUDE_MODEL": "claude-sonnet-5-5"
+  },
+  "observability": { "enabled": true }
+}
