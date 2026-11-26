@@ -140,7 +140,38 @@ export async function readWipProjectWeeks(env, projectId) {
   return { status: 'loaded', ...row };
 }
 
-async function projectWeekWrites(env, token, pending) {
+
+function weekTextRuns(text) {
+  const runs = [];
+  let startIndex = 0;
+  let bold;
+  for (const line of text.split('\n')) {
+    const label = /^(?:what has been done|next (?:step action|action steps?))\s*:\s*$/i.test(line.trim());
+    if (startIndex < text.length && label !== bold) {
+      runs.push({ startIndex, format: { bold: label } });
+      bold = label;
+    }
+    startIndex += line.length + 1;
+  }
+  return runs;
+}
+
+function sheetCells(sheetId, rowIndex, columnIndex, values, richText = false) {
+  return {
+    updateCells: {
+      start: { sheetId, rowIndex, columnIndex },
+      rows: values.map(row => ({ values: row.map(text => {
+        if (text === '') return {};
+        const cell = { userEnteredValue: { stringValue: text } };
+        if (richText) cell.textFormatRuns = weekTextRuns(text);
+        return cell;
+      }) })),
+      fields: richText ? 'userEnteredValue,textFormatRuns' : 'userEnteredValue'
+    }
+  };
+}
+
+async function projectWeekWrites(env, token, sheetId, pending) {
   const updates = pending.map(cells => cells[7]).filter(Boolean);
   if (!updates.length) return [];
   const rows = await projectRows(env, token);
@@ -148,8 +179,7 @@ async function projectWeekWrites(env, token, pending) {
   for (const update of updates) {
     const row = findProjectRow(rows, update);
     if (!row) continue;
-    writes.set(row.number, { range: sheetRange('M' + row.number + ':N' + row.number),
-      values: [[update.previous, update.next]] });
+    writes.set(row.number, sheetCells(sheetId, row.number - 1, 12, [[update.previous, update.next]], true));
   }
   return [...writes.values()];
 }
@@ -168,6 +198,7 @@ async function ensureLogCapacity(env, token, lastRow) {
       body: JSON.stringify({ requests: [{ appendDimension: { sheetId: tab.sheetId, dimension: 'ROWS', length: Math.max(100, extra) } }] })
     });
   }
+  return tab.sheetId;
 }
 
 export async function syncWipSheet(env) {
@@ -198,12 +229,12 @@ export async function syncWipSheet(env) {
   if (pending.length) {
     const firstRow = Math.max(7, 6 + log.length);
     const lastRow = firstRow + pending.length - 1;
-    await ensureLogCapacity(env, token, lastRow);
-    const data = await projectWeekWrites(env, token, pending);
-    data.push({ range: sheetRange('X' + firstRow + ':AD' + lastRow), values: pending.map(cells => cells.slice(0, 7)) });
-    await sheetsRequest(sheetUrl(env) + '/values:batchUpdate', token, {
+    const sheetId = await ensureLogCapacity(env, token, lastRow);
+    const requests = await projectWeekWrites(env, token, sheetId, pending);
+    requests.push(sheetCells(sheetId, firstRow - 1, 23, pending.map(cells => cells.slice(0, 7))));
+    await sheetsRequest(sheetUrl(env) + ':batchUpdate', token, {
       method: 'POST',
-      body: JSON.stringify({ valueInputOption: 'RAW', data })
+      body: JSON.stringify({ requests })
     });
   }
   await db.prepare('DELETE FROM wip_sheet_outbox WHERE update_id IN (' + rows.map(() => '?').join(',') + ')')
