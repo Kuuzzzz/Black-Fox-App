@@ -279,6 +279,13 @@
       if (i.addGoogleMeetUrl) ev.conferenceData = { createRequest: { requestId: 'bfc' + Date.now().toString(36), conferenceSolutionKey: { type: 'hangoutsMeet' } } };
       return g(CAL + 'calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', { method: 'POST', json: ev });
     },
+    'Google Calendar/delete_event': function (i) {
+      var send = i.notificationLevel === 'NONE' ? 'none' : i.notificationLevel === 'EXTERNAL_ONLY' ? 'externalOnly' : 'all';
+      return g(CAL + 'calendars/' + enc(i.calendarId || 'primary') + '/events/' + enc(i.eventId) + '?sendUpdates=' + send, { method: 'DELETE' }).then(function () { return {}; });
+    },
+    'Google Sheets/update_values': function (i) {
+      return g(SHEETS + enc(i.spreadsheetId) + '/values/' + enc(i.range) + '?valueInputOption=USER_ENTERED', { method: 'PUT', json: { range: i.range, majorDimension: 'ROWS', values: i.values } });
+    },
     'Google Sheets/get_values': function (i) {
       return g(SHEETS + enc(i.spreadsheetId) + '/values/' + enc(i.range) + '?valueRenderOption=FORMATTED_VALUE').then(function (r) { return { values: r.values || [], range: r.range }; });
     },
