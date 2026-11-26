@@ -390,6 +390,7 @@
   /* ---------------------------------------------------------------- window.claude */
   window.claude = {
     bfc: true,
+    readWipProjectWeeks: function (id) { return api('/wip/project-weeks?projectId=' + encodeURIComponent(id)); },
     use: function (name) {
       if (name === 'db') return getMe().then(function () { if (!polling) { polling = true; poll(); } return db; });
       if (name === 'user') return getMe().then(function () { return user; });
