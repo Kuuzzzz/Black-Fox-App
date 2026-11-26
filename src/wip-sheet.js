@@ -102,7 +102,7 @@ export async function syncWipSheet(env) {
   }
   const pending = rows.filter(row => !existing.has(row.update_id));
   if (pending.length) {
-    await sheetsRequest(base + range('X6:AD') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', token, {
+    await sheetsRequest(base + range('X6:AD') + ':append?valueInputOption=RAW&insertDataOption=OVERWRITE', token, {
       method: 'POST',
       body: JSON.stringify({ values: pending.map(row => JSON.parse(row.cells)) })
     });
