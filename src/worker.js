@@ -34,7 +34,7 @@ export default {
       if (p === '/api/me' && req.method === 'GET') return await me(env, user);
       if (p === '/api/users' && req.method === 'GET') return await users(env, url);
       if (p === '/api/db/changes' && req.method === 'GET') return await dbChanges(env, user, url);
-      if (p === '/api/db/write' && req.method === 'POST') return await dbWrite(env, user, await readJson(req));
+      if (p === '/api/db/write' && req.method === 'POST') return await dbWrite(env, user, await readJson(req), ctx);
       if (p === '/api/wip/project-weeks' && req.method === 'GET') {
         const id = url.searchParams.get('projectId') || '';
         if (!PATH_RE.test(id) || id.includes('/')) throw new HttpError(400, 'invalid_argument', 'Bad project ID.');
@@ -161,7 +161,7 @@ async function dbChanges(env, user, url) {
 }
 let lastTs = 0;
 function stamp() { const t = Math.max(Date.now(), lastTs + 1); lastTs = t; return t; }
-async function dbWrite(env, user, b) {
+async function dbWrite(env, user, b, ctx) {
   const op = b.op;
   let path = String(b.path || '');
   if (op === 'add') path = path + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -191,6 +191,10 @@ async function dbWrite(env, user, b) {
     await ensureWipOutbox(env.DB);
     const [, queued] = await env.DB.batch([save, wipUpdate]);
     wipSync = queued.meta.changes ? 'queued' : 'not_queued';
+    if (wipSync === 'queued') {
+      // The saved outbox entry remains available to cron if this attempt fails or times out.
+      ctx.waitUntil(syncWipSheet(env).catch(error => console.error('Immediate WIP sync failed:', error.message)));
+    }
   } else {
     await save.run();
     if (op === 'add' && coll === 'updates') wipSync = 'not_queued';
