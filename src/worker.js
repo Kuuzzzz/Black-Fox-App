@@ -5,7 +5,7 @@
  * on every API call, so nobody reaches the data without passing Access.
  */
 
-import { ensureWipOutbox, prepareWipSheetUpdate, syncWipSheet, wipSheetEnabled } from './wip-sheet.js';
+import { ensureWipOutbox, prepareWipSheetUpdate, readWipProjectWeeks, syncWipSheet, wipSheetEnabled } from './wip-sheet.js';
 
 const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
@@ -35,6 +35,12 @@ export default {
       if (p === '/api/users' && req.method === 'GET') return await users(env, url);
       if (p === '/api/db/changes' && req.method === 'GET') return await dbChanges(env, user, url);
       if (p === '/api/db/write' && req.method === 'POST') return await dbWrite(env, user, await readJson(req));
+      if (p === '/api/wip/project-weeks' && req.method === 'GET') {
+        const id = url.searchParams.get('projectId') || '';
+        if (!PATH_RE.test(id) || id.includes('/')) throw new HttpError(400, 'invalid_argument', 'Bad project ID.');
+        if (!wipSheetEnabled(env)) return json({ status: 'unavailable' });
+        return json(await readWipProjectWeeks(env, id));
+      }
       if (p === '/api/google/start' && req.method === 'GET') return await googleStart(env, user, url);
       if (p === '/api/google/callback' && req.method === 'GET') return await googleCallback(env, user, url);
       if (p === '/api/google/token' && req.method === 'POST') return await googleToken(env, user);
