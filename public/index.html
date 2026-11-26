@@ -3164,11 +3164,13 @@ function saveUpdate(o, btn) {
   var done = busy(btn, 'Posting…'), p = projectById(o.projectId);
   var prev = { done: clean(o.prevDone), next: clean(o.prevNext) }, cur = { done: clean(o.done), next: clean(o.next) };
   S.db.collection('updates').add({ projectId: o.projectId, done: cur.done, next: cur.next, prevDone: prev.done, prevNext: prev.next, weeks: true, link: safeUrl(o.link), author: S.me.id || '', date: todayIso(), at: Date.now() })
-    .then(function () {
-      closeSheet(); toast('Update posted. Writing it to the WIP sheet…');
-      if (!p) return;
+    .then(function (saved) {
+      closeSheet();
+      if (saved && saved.wipSync === 'queued') { toast('Update posted. Queued for Black Fox Updates.'); return; }
+      if (saved && saved.wipSync === 'not_queued') { toast('Update posted in the app. Black Fox Updates sync is unavailable for this post.', true); return; }
+      if (!p) { toast('Update posted'); return; }
+      toast('Update posted. Writing it to the WIP sheet…');
       wipPush(p, prev, cur).then(function (where) { toast('Update posted and written to the WIP sheet (' + where + ').'); }, function (e) {
-        var c = e && e.code;
         toast('Update posted in the app, but the WIP sheet was not changed. ' + wipErrText(e), true);
       });
     }, function (e) { done(); toast(dbErr(e), true); });
