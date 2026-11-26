@@ -180,13 +180,16 @@ async function dbWrite(env, user, b) {
     .bind(path, coll, id, text, ts);
   const wipUpdate = op === 'add' && coll === 'updates' && wipSheetEnabled(env)
     ? prepareWipSheetUpdate(env.DB, id, data, user.email, ts) : null;
+  let wipSync;
   if (wipUpdate) {
     await ensureWipOutbox(env.DB);
-    await env.DB.batch([save, wipUpdate]);
+    const [, queued] = await env.DB.batch([save, wipUpdate]);
+    wipSync = queued.meta.changes ? 'queued' : 'not_queued';
   } else {
     await save.run();
+    if (op === 'add' && coll === 'updates') wipSync = 'not_queued';
   }
-  return json({ path, coll, id, ts, deleted: false, data });
+  return json({ path, coll, id, ts, deleted: false, data, wipSync });
 }
 
 /* ------------------------------------------------------------------ secrets helpers */
