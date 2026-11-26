@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="/icons/fox-192.png">
 <link rel="apple-touch-icon" href="/icons/fox-180.png">
 <style>body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<script src="/bridge.js?v=4"></script>
+<script src="/bridge.js?v=5"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -171,6 +171,8 @@ button.chip { cursor: pointer; }
 .btn.sm { height: 32px; padding: 0 12px; font-size: 12px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; }
 .btn svg { width: 16px; height: 16px; }
+.btn.icon-only { width: 32px; padding: 0; color: var(--muted2); }
+.btn.icon-only:hover { color: var(--bad); border-color: var(--bad-dim); }
 .icon-btn { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--line2); background: var(--card2); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .icon-btn:hover { border-color: var(--accent); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -268,10 +270,27 @@ details.done-list summary::-webkit-details-marker { display: none; }
 .lanes { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1024px) { .lanes.two { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
 .lane-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.wip-card { position: relative; }
+.wip-card .card-del { position: absolute; top: 12px; right: 12px; }
+.wip-card .card-del + .client, .wip-card .card-del ~ .name { padding-right: 36px; }
 .wip-card .client { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 .wip-card .name { font: 700 17px/1.2 var(--head); letter-spacing: 0.02em; margin-top: 2px; color: var(--text); display: block; }
 .wip-card .name:hover { color: var(--accent); text-decoration: none; }
 .wip-card .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.wks { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+@media (min-width: 560px) { .wks { grid-template-columns: 1fr 1fr; } }
+.wk { border-radius: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); min-width: 0; }
+.wk.cur { background: rgba(79, 216, 255, 0.06); border-color: rgba(79, 216, 255, 0.25); }
+.wk-h { font: 700 11px/1 var(--head); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted2); margin-bottom: 6px; }
+.wk.cur .wk-h { color: var(--accent); }
+.wk-l { font: 600 10.5px/1 var(--head); letter-spacing: 0.1em; text-transform: uppercase; color: var(--good); margin: 6px 0 3px; }
+.wk-l.nx { color: var(--warn); }
+.wk-t { font-size: 12.5px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.wk.prev .wk-t { color: var(--muted2); }
+.wk-empty { font-size: 12px; color: var(--muted); }
+.upd-wk { border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 2px; margin-bottom: 12px; }
+.upd-wk.cur { border-color: rgba(79, 216, 255, 0.35); }
+.upd-wk > .wk-h { margin-bottom: 10px; }
 .wip-card .done { margin-top: 10px; font-size: 13px; color: var(--muted2); white-space: pre-wrap; }
 .wip-card .foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 
@@ -291,6 +310,11 @@ details.done-list summary::-webkit-details-marker { display: none; }
 .ev:hover { text-decoration: none; background: rgba(79, 216, 255, 0.22); }
 .ev b { display: block; font-family: var(--head); letter-spacing: 0.05em; color: var(--hi); }
 .ev.all { background: var(--chip-dim); border-left-color: var(--muted); }
+.ev-wrap { position: relative; display: block; }
+.ev.has-del { padding-right: 34px; }
+.ev-del { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--muted2); }
+.ev-del svg { width: 15px; height: 15px; }
+.ev-del:hover { color: var(--bad); background: var(--bad-dim); }
 .rooms { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); margin-top: 8px; }
 .room-opt { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; min-height: 54px; border-radius: 14px; background: var(--field); border: 1px solid var(--line2); color: var(--text); cursor: pointer; font: inherit; }
 .room-opt > svg { width: 18px; height: 18px; flex: none; color: var(--muted2); }
@@ -554,6 +578,7 @@ var I = {
   lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
   refresh: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   x: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+  trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>'),
   edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>'),
   ext: svg('<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'),
   copy: svg('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
@@ -564,7 +589,7 @@ var I = {
 var S = {
   ready: false, db: null, mcp: null, user: null,
   isOwner: false, canEdit: false, me: { id: null, name: '', email: null },
-  projects: [], brands: [], updates: [], training: [], budgets: {}, settings: {}, people: [],
+  projects: [], brands: [], updates: [], training: [], removed: [], budgets: {}, settings: {}, people: [],
   versions: {}, loaded: {}, dbError: '',
   collected: {}, roomsSeen: {}, roomDays: {},
   inbox: { state: 'idle', items: [], error: '', at: 0 },
@@ -719,7 +744,7 @@ function projUpdates(id) {
 /** The project's latest status: an update posted in the app, or the WIP sheet's latest column. */
 function activity(p) {
   var u = projUpdates(p.id)[0], w = p.wip || {};
-  if (u && (!w.syncedAt || String(u.date) >= String(w.syncedAt))) return { done: u.done || '', next: u.next || '', date: u.date, author: u.author, link: u.link || '', src: 'app' };
+  if (u && (!w.syncedAt || String(u.date) >= String(w.syncedAt))) return { id: u.id, done: u.done || '', next: u.next || '', date: u.date, author: u.author, link: u.link || '', src: 'app' };
   if (w.done || w.next) return { done: w.done || '', next: w.next || '', date: w.syncedAt || '', src: 'wip' };
   return null;
 }
@@ -965,7 +990,9 @@ function normEvent(e) {
   return { id: e.id, title: e.summary || 'Busy', allDay: allDay, start: allDay ? s : new Date(s), end: allDay ? (en || addDays(s, 1)) : new Date(en || s),
     link: safeUrl(e.htmlLink), attendees: att.filter(function (a) { return !a.resource; }).map(function (a) { return a.email; }),
     rooms: att.filter(function (a) { return a.resource && a.email; }).map(function (a) { return { email: String(a.email).toLowerCase(), name: String(a.displayName || '') }; }),
-    declined: att.some(function (a) { return a.self && a.responseStatus === 'declined'; }) };
+    declined: att.some(function (a) { return a.self && a.responseStatus === 'declined'; }),
+    mine: !!(e.organizer && (e.organizer.self || (S.me.email && String(e.organizer.email || '').toLowerCase() === String(S.me.email).toLowerCase()))),
+    repeat: !!e.recurringEventId, guests: att.filter(function (a) { return !a.resource && !a.self && !a.organizer; }).length };
 }
 function onDay(ev, day) {
   if (ev.allDay) return ev.start <= day && day < ev.end;
@@ -1399,11 +1426,11 @@ VIEWS.project = {
     region('projBody',
       '<div class="page-head"><div><div class="eyebrow">' + esc(p.client + ' · ' + p.brand) + '</div><h1 class="h-xl" style="margin-top:8px">' + esc(p.name) + '</h1>' +
       '<div class="row wrap" style="margin-top:12px">' + laneChip(p.lane) + statusChip(p.status) + (p.type ? '<span class="chip dim">' + esc(p.type) + '</span>' : '') + (isStale(p) && p.lane !== 'Past' ? '<span class="chip warn">Needs an update</span>' : '') + '</div></div>' +
-      '<div class="actions"><button type="button" class="btn" data-act="editProject" data-id="' + esc(p.id) + '">' + I.edit + 'Edit</button><button type="button" class="btn primary" data-act="addUpdate" data-id="' + esc(p.id) + '">' + I.plus + 'Update</button></div></div>' +
+      '<div class="actions">' + (canDelProject() ? '<button type="button" class="btn ghost" data-act="delProject" data-id="' + esc(p.id) + '">' + I.trash + 'Delete</button>' : '') + '<button type="button" class="btn" data-act="editProject" data-id="' + esc(p.id) + '">' + I.edit + 'Edit</button><button type="button" class="btn primary" data-act="addUpdate" data-id="' + esc(p.id) + '">' + I.plus + 'Update</button></div></div>' +
       '<section class="card" style="margin-bottom:14px"><div class="card-head"><h2>Workflow</h2><span class="muted small">Stage ' + st + ' of 6 · tap a stage to move</span></div><div class="stepper">' + steps + '</div>' +
       '<div class="stage-note"><b>' + STAGES[st - 1] + ':</b> ' + esc(STAGE_NOTE[st - 1]) + '</div></section>' +
       '<div class="cols-main"><div class="stack">' + timelineCard(p) + updatesCard(p, a) + '</div>' +
-      '<div class="stack"><section class="card"><div class="card-head"><h2>Details</h2></div><div class="facts">' + facts + '</div></section>' +
+      '<div class="stack"><section class="card"><div class="card-head"><h2>Details</h2><button type="button" class="btn sm" data-act="editProject" data-id="' + esc(p.id) + '">' + I.edit + 'Edit</button></div><div class="facts">' + facts + '</div></section>' +
       '<section class="card"><div class="card-head"><h2>Files &amp; timelines</h2></div><div class="links">' + links + '</div>' +
       '<p class="muted small" style="margin:12px 0 0">Build INT_ first. When it is ready, copy it as EXT_ and share only EXT_ with the client.</p></section>' + filesCard(p) + (S.isOwner && S.google ? mailsCard(p) : '') + '</div></div>');
   }
@@ -1478,15 +1505,41 @@ function msRow(m) {
 }
 function updatesCard(p, a) {
   var ups = projUpdates(p.id), w = p.wip || {};
-  var html = ups.map(function (u) { return updateItem(u.date, authorName(u.author), u.done, u.next, u.link); }).join('');
+  var html = ups.map(function (u) { return updateItem(u.date, authorName(u.author), u.done, u.next, u.link, u); }).join('');
   if (w.done || w.next) html += updateItem(w.syncedAt, 'WIP sheet · latest', w.done, w.next, '');
   if (w.prevDone || w.prevNext) html += updateItem('', 'WIP sheet · week before', w.prevDone, w.prevNext, '');
   return '<section class="card"><div class="card-head"><h2>Weekly updates</h2><button type="button" class="btn sm" data-act="addUpdate" data-id="' + esc(p.id) + '">' + I.plus + 'Update</button></div>' +
     (html || '<div class="empty"><b>No updates yet</b>Post what has been done and the next action steps.</div>') + '</section>';
 }
-function updateItem(date, who, done, next, link) {
+/* The two WIP sheet columns for a project: previous week and next week, each with done + next steps */
+function weeks(p) {
+  var ups = projUpdates(p.id), u = ups[0], w = p.wip || {}, a = activity(p);
+  if (!a) return null;
+  var cur = { done: a.done || '', next: a.next || '' }, prev = { done: '', next: '' };
+  if (a.src === 'wip') prev = { done: w.prevDone || '', next: w.prevNext || '' };
+  else if (u.prevDone || u.prevNext || u.weeks) prev = { done: u.prevDone || '', next: u.prevNext || '' };
+  else if (ups[1]) prev = { done: ups[1].done || '', next: ups[1].next || '' };
+  else if ((w.done || w.next) && String(w.syncedAt || '') <= String(u.date)) prev = { done: w.done || '', next: w.next || '' };
+  return { prev: prev, cur: cur, src: a.src, date: a.date, author: a.author };
+}
+function wipCell(x) {
+  if (!x || (!clean(x.done) && !clean(x.next))) return '';
+  return 'What Has Been Done:\n' + clean(x.done) + '\n\nNext Action Steps:\n' + clean(x.next);
+}
+function weekBlock(label, x, cls) {
+  if (!x || (!x.done && !x.next)) return '<div class="wk ' + cls + '"><div class="wk-h">' + label + '</div><div class="wk-empty">Nothing yet</div></div>';
+  return '<div class="wk ' + cls + '"><div class="wk-h">' + label + '</div>' +
+    (x.done ? '<div class="wk-l">What has been done</div><div class="wk-t">' + esc(x.done) + '</div>' : '') +
+    (x.next ? '<div class="wk-l nx">Next action steps</div><div class="wk-t">' + esc(x.next) + '</div>' : '') + '</div>';
+}
+/* Who may delete an app update: its author, the owner, or anyone with edit access */
+function canDelProject() { return !!(S.db && (S.isOwner || S.canEdit)); }
+function removedKeys() { var m = {}; (S.removed || []).forEach(function (r) { if (r.key) m[r.key] = 1; }); return m; }
+function canDelUpdate(u) { return !!(u && u.id && S.db && (S.isOwner || S.canEdit || (u.author && u.author === S.me.id))); }
+function delUpdateBtn(u) { return canDelUpdate(u) ? '<button type="button" class="btn sm ghost icon-only" data-act="delUpdate" data-id="' + esc(u.id) + '" aria-label="Delete this update" title="Delete this update">' + I.trash + '</button>' : ''; }
+function updateItem(date, who, done, next, link, rec) {
   var u = safeUrl(link);
-  return '<div class="update"><div class="row between"><span class="item-title">' + esc(who) + '</span><span class="muted small num">' + esc(isIso(date) ? fmtDate(date, true) : date || '') + '</span></div>' +
+  return '<div class="update"><div class="row between"><span class="item-title">' + esc(who) + '</span><span class="row" style="gap:6px"><span class="muted small num">' + esc(isIso(date) ? fmtDate(date, true) : date || '') + '</span>' + (rec ? delUpdateBtn(rec) : '') + '</span></div>' +
     (done ? '<div class="lbl">What has been done</div><p>' + esc(done) + '</p>' : '') + (next ? '<div class="lbl next">Next action steps</div><p>' + esc(next) + '</p>' : '') +
     (u ? '<div style="margin-top:8px"><a class="small" href="' + esc(u) + '" target="_blank" rel="noopener">Open link</a></div>' : '') + '</div>';
 }
@@ -1524,10 +1577,10 @@ VIEWS.team = {
 };
 function wipCard(p) {
   var a = activity(p), d = staleDays(p), k = keyLiveIso(p);
-  return '<article class="card wip-card"><div class="client">' + esc(p.client + ' · ' + p.brand) + '</div><a class="name" href="#project-' + esc(p.id) + '">' + esc(p.name) + '</a>' +
+  return '<article class="card wip-card">' + (canDelProject() ? '<button type="button" class="btn sm ghost icon-only card-del" data-act="delProject" data-id="' + esc(p.id) + '" aria-label="Delete project ' + esc(p.name) + '" title="Delete project">' + I.trash + '</button>' : '') + '<div class="client">' + esc(p.client + ' · ' + p.brand) + '</div><a class="name" href="#project-' + esc(p.id) + '">' + esc(p.name) + '</a>' +
     '<div class="chips">' + statusChip(p.status) + '<span class="chip dim">' + esc(STAGES[(p.stage || 1) - 1]) + '</span>' + (k ? '<span class="chip num">Live ' + esc(fmtDate(k)) + '</span>' : '') +
     (isStale(p) ? '<span class="chip warn">' + (d === null ? 'No update yet' : 'No update ' + d + 'd') + '</span>' : '') + (!String(p.pic || '').trim() ? '<span class="chip bad">No PIC</span>' : '') + '</div>' +
-    (a && a.next ? '<div class="next-box">' + esc(a.next) + '</div>' : '') + (a && a.done ? '<div class="done"><b class="label" style="display:block;margin-bottom:3px">Done</b>' + esc(a.done) + '</div>' : '') +
+    (function () { var wk = weeks(p); return wk ? '<div class="wks">' + weekBlock('Previous week', wk.prev, 'prev') + weekBlock('Next week', wk.cur, 'cur') + '</div>' : ''; })() +
     '<div class="foot">' + avatars(p.pic + '\n' + p.supportedBy, 5) + '<span class="muted small grow">' + esc(a ? (a.src === 'wip' ? 'From WIP sheet' : authorName(a.author)) + (isIso(a.date) ? ' · ' + fmtDate(a.date) : '') : '') + '</span>' +
     '<button type="button" class="btn sm" data-act="addUpdate" data-id="' + esc(p.id) + '">Update</button></div></article>';
 }
@@ -1614,9 +1667,13 @@ function paintCalRooms(c) {
     region('calRooms', h + '</div></div></section>');
   }
 }
+var EV_INDEX = {};
 function evChip(e) {
   var inner = '<b class="num">' + (e.allDay ? 'All day' : hm(e.start) + '–' + hm(e.end)) + '</b>' + esc(e.title);
-  return e.link ? '<a class="ev ' + (e.allDay ? 'all' : '') + '" href="' + esc(e.link) + '" target="_blank" rel="noopener">' + inner + '</a>' : '<span class="ev ' + (e.allDay ? 'all' : '') + '">' + inner + '</span>';
+  var chip = e.link ? '<a class="ev ' + (e.allDay ? 'all' : '') + '" href="' + esc(e.link) + '" target="_blank" rel="noopener">' + inner + '</a>' : '<span class="ev ' + (e.allDay ? 'all' : '') + '">' + inner + '</span>';
+  if (!e.mine || !e.id || !S.isOwner || !S.mcp) return chip;
+  EV_INDEX[e.id] = e;
+  return '<span class="ev-wrap">' + chip.replace('class="ev ', 'class="ev has-del ') + '<button type="button" class="ev-del" data-act="delEvent" data-id="' + esc(e.id) + '" aria-label="Cancel ' + esc(e.title) + '" title="Cancel this meeting">' + I.trash + '</button></span>';
 }
 
 /* Training */
@@ -2945,14 +3002,15 @@ function projectSheet(p, preset) {
     '<div class="field-row"><div class="field"><label for="pf-end">End</label><input class="input" id="pf-end" name="end" placeholder="20 Dec 2026" value="' + v('end') + '"></div>' +
     '<div class="field"><label for="pf-status">Status</label><input class="input" id="pf-status" name="status" list="dl-status" value="' + esc(p.status || preset.status || 'Active') + '"></div></div>' +
     '<datalist id="dl-status"><option value="Active"><option value="Pending Client"><option value="At Risk"><option value="On Hold"><option value="Completed"></datalist>' +
-    '<div class="field-row"><div class="field"><label for="pf-pic">PIC</label><input class="input" id="pf-pic" name="pic" value="' + v('pic') + '"></div>' +
-    '<div class="field"><label for="pf-sup">Supported by</label><input class="input" id="pf-sup" name="supportedBy" value="' + v('supportedBy') + '"></div></div>' +
+    '<div class="field-row"><div class="field"><label for="pf-pic">PIC</label><textarea class="input" id="pf-pic" name="pic" rows="2" style="min-height:64px">' + v('pic') + '</textarea></div>' +
+    '<div class="field"><label for="pf-sup">Supported by</label><textarea class="input" id="pf-sup" name="supportedBy" rows="2" style="min-height:64px" placeholder="One name per line">' + v('supportedBy') + '</textarea></div></div>' +
     '<div class="field"><label for="pf-req">Client requirement</label><textarea class="input" id="pf-req" name="requirement">' + v('requirement') + '</textarea></div>' +
     (S.canEdit ? '<div class="field"><label for="pf-budget">Estimated budget</label><input class="input" id="pf-budget" name="budget" placeholder="$15,000.00" value="' + budget + '"></div>' : '') +
     '<div class="field"><label for="pf-folder">Project folder link (Google Drive)</label><input class="input" id="pf-folder" name="folderUrl" type="url" placeholder="https://drive.google.com/…" value="' + v('folderUrl') + '"></div>' +
     '<div class="field"><label for="pf-int">INT_ master timeline link (team)</label><input class="input" id="pf-int" name="timelineIntUrl" type="url" placeholder="https://docs.google.com/spreadsheets/…" value="' + v('timelineIntUrl') + '"></div>' +
     '<div class="field"><label for="pf-ext">EXT_ master timeline link (client copy)</label><input class="input" id="pf-ext" name="timelineExtUrl" type="url" placeholder="https://docs.google.com/spreadsheets/…" value="' + v('timelineExtUrl') + '"></div>' +
     '<div class="field"><label for="pf-notes">Notes</label><textarea class="input" id="pf-notes" name="notes">' + v('notes') + '</textarea></div>' +
+    '<p class="small muted" style="margin:0 0 4px">Saving also writes these details into this project\'s row in the WIP sheet. Links and notes stay in the app.</p>' +
     '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Cancel</button><button class="btn primary" type="submit" data-id="' + esc(p.id || '') + '">' + (p.id ? 'Save' : 'Add project') + '</button></div></form>');
 }
 function saveProjectForm(form, btn) {
@@ -2962,7 +3020,8 @@ function saveProjectForm(form, btn) {
     pic: o.pic, supportedBy: o.supportedBy, requirement: o.requirement, folderUrl: o.folderUrl, timelineIntUrl: o.timelineIntUrl, timelineExtUrl: o.timelineExtUrl, notes: o.notes,
     keyLiveIso: parseDate(o.keyLive), key: projKey(o.brand, o.name), updatedAt: Date.now() };
   var done = busy(btn);
-  var ops = [];
+  var ops = [], before = id ? Object.assign({}, projectById(id) || {}) : null;
+  var oldBudget = (id && S.budgets[id] && S.budgets[id].amount) || '';
   if (id) ops.push(S.db.doc('projects/' + id).update(data));
   else {
     id = slug(o.brand + '-' + o.name); if (projectById(id)) id += '-' + uid().slice(-4);
@@ -2972,8 +3031,16 @@ function saveProjectForm(form, btn) {
   if (!S.brands.some(function (b) { return norm(b.brand) === norm(data.brand) && norm(b.client) === norm(data.client); }))
     ops.push(S.db.doc('brands/' + slug(data.client + '-' + data.brand)).set({ client: data.client, brand: data.brand, notes: '' }));
   if (S.canEdit && o.budget !== undefined && o.budget !== ((S.budgets[id] && S.budgets[id].amount) || '')) ops.push(S.db.doc('budgets/' + id).set({ amount: o.budget }));
-  Promise.all(ops).then(function () { closeSheet(); toast('Saved'); if (location.hash !== '#project-' + id) location.hash = 'project-' + id; },
-    function (e) { done(); toast(dbErr(e), true); });
+  Promise.all(ops).then(function () {
+    closeSheet(); if (location.hash !== '#project-' + id) location.hash = 'project-' + id;
+    var changed = before ? ['client', 'brand', 'name', 'type', 'start', 'keyLive', 'end', 'status', 'pic', 'supportedBy', 'requirement'].map(function (k) { return clean(before[k]) !== clean(data[k]); })
+      .concat([S.canEdit && o.budget !== undefined && clean(o.budget) !== clean(oldBudget)]) : null;
+    var nu = Object.assign({}, before || {}, data, { id: id, newBudget: o.budget, changed: changed });
+    if (!S.mcp || nu.lane === 'Past' && !before) { toast('Saved'); return; }
+    toast('Saved. Writing it to the WIP sheet…');
+    wipPushDetails(before || nu, nu).then(function (where) { toast('Saved and written to the WIP sheet (' + where + ').'); },
+      function (e) { toast('Saved in the app, but the WIP sheet was not changed. ' + wipErrText(e), true); });
+  }, function (e) { done(); toast(dbErr(e), true); });
 }
 function brandSheet() {
   var clients = {}; S.brands.concat(S.projects).forEach(function (x) { if (x.client) clients[x.client] = 1; });
@@ -2987,19 +3054,126 @@ function updateSheet(pid) {
   var opts = live().slice().sort(function (a, b) { return (a.brand + a.name).localeCompare(b.brand + b.name); }).map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pid ? ' selected' : '') + '>' + esc(p.brand + ' · ' + p.name) + '</option>'; }).join('');
   var p = pid && projectById(pid);
   openSheet(sheetHead('Weekly update', p ? p.name : 'Team WIP') + '<form id="updForm" autocomplete="off">' +
-    '<div class="field"><label for="uf-p">Project</label><select class="input" id="uf-p" name="projectId" required><option value="">Pick a project</option>' + opts + '</select></div>' +
-    '<div class="field"><label for="uf-done">What has been done</label><textarea class="input" id="uf-done" name="done" placeholder="1. Shared the 3D booth design with the client"></textarea></div>' +
-    '<div class="field"><label for="uf-next">Next action steps</label><textarea class="input" id="uf-next" name="next" placeholder="1. Submit quotation by 27 Nov"></textarea></div>' +
+    '<div class="field"><label for="uf-p">Project</label><select class="input" id="uf-p" name="projectId" required data-change="updProject"><option value="">Pick a project</option>' + opts + '</select></div>' +
+    '<div class="row between" style="margin:-4px 0 10px"><span class="small muted" id="uf-src"></span><button type="button" class="btn sm ghost" data-act="updShift" title="Copies Next week into Previous week and clears Next week">' + I.refresh + 'Start a new week</button></div>' +
+    '<div class="upd-wk prev"><div class="wk-h">Previous week updates</div>' +
+    '<div class="field"><label for="uf-pdone">What has been done</label><textarea class="input" id="uf-pdone" name="prevDone" placeholder="1. Second round presentation done"></textarea></div>' +
+    '<div class="field"><label for="uf-pnext">Next action steps</label><textarea class="input" id="uf-pnext" name="prevNext" placeholder="1. Revise the big idea activation"></textarea></div></div>' +
+    '<div class="upd-wk cur"><div class="wk-h">Next week updates</div>' +
+    '<div class="field"><label for="uf-done">What has been done</label><textarea class="input" id="uf-done" name="done" placeholder="1. Proposal and quote submitted"></textarea></div>' +
+    '<div class="field"><label for="uf-next">Next action steps</label><textarea class="input" id="uf-next" name="next" placeholder="1. Follow up on the proposal results"></textarea></div></div>' +
     '<div class="field"><label for="uf-link">Link (optional)</label><input class="input" id="uf-link" name="link" type="url" placeholder="https://"></div>' +
+    '<p class="small muted" style="margin:0 0 4px">Posting also writes both columns into this project\'s row in the WIP sheet.</p>' +
     '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Cancel</button><button class="btn primary" type="submit">Post update</button></div></form>');
+  updFill(pid);
+}
+/* Fill the form from the app first, then from the project's live row in the WIP sheet */
+var UPD_TOK = 0;
+function updSet(x, srcText) {
+  [['uf-pdone', x.prev.done], ['uf-pnext', x.prev.next], ['uf-done', x.cur.done], ['uf-next', x.cur.next]].forEach(function (f) { var el = document.getElementById(f[0]); if (el) el.value = f[1] || ''; });
+  var s = document.getElementById('uf-src'); if (s) s.textContent = srcText || '';
+}
+function updFill(pid) {
+  var p = pid && projectById(pid), tok = ++UPD_TOK;
+  if (!p) { updSet({ prev: {}, cur: {} }, ''); return; }
+  var wk = weeks(p);
+  updSet(wk || { prev: {}, cur: {} }, wk ? 'Loading the WIP sheet…' : 'Checking the WIP sheet…');
+  var form = document.getElementById('updForm'); if (form) { form.dataset.dirty = ''; if (!form.dataset.watch) { form.dataset.watch = '1'; form.addEventListener('input', function (ev) { if (ev.target && ev.target.tagName === 'TEXTAREA') form.dataset.dirty = '1'; }); } }
+  wipRow(p).then(function (r) {
+    if (tok !== UPD_TOK || !document.getElementById('updForm') || form.dataset.dirty) return;
+    if (r.row < 0) { updSet(wk || { prev: {}, cur: {} }, 'Not in the WIP sheet yet. Posting adds a row.'); return; }
+    var v = r.values[r.row] || [];
+    updSet({ prev: splitUpdate(v[12]), cur: splitUpdate(v[13]) }, 'Loaded from the WIP sheet, row ' + (r.row + 1) + '.');
+  }, function () { if (tok === UPD_TOK) { var s = document.getElementById('uf-src'); if (s) s.textContent = 'Could not open the WIP sheet. Showing what the app has.'; } });
+}
+function wipSheetIdNow() { return sheetId(S.settings.wipSheetId || DEFAULT_WIP) || S.settings.wipSheetId || DEFAULT_WIP; }
+/* Read the WIP sheet and find this project's row (0-based index into values) */
+function wipRow(p) {
+  return readTool(GSHEETS, 'get_values', { spreadsheetId: wipSheetIdNow(), range: 'A1:N400' }, { cache: false }).then(function (pl) {
+    var values = (pl && pl.values) || [], key = p.key || projKey(p.brand, p.name), row = -1;
+    var tab = String((pl && pl.range) || ''), bang = tab.lastIndexOf('!');
+    for (var i = 0; i < values.length; i++) {
+      var r = values[i] || [], a = clean(r[0]), nm = clean(r[2]);
+      if (!a || !nm || a.toUpperCase() === 'CLIENT') continue;
+      if (projKey(cleanBrand(r[1]) || cleanClient(a), nm) === key || projKey(cleanBrand(r[1]) || cleanClient(a), nm) === projKey(p.brand, p.name)) { row = i; break; }
+    }
+    return { values: values, row: row, prefix: bang > 0 ? tab.slice(0, bang + 1) : '' };
+  });
+}
+/* WIP sheet parts: 1 New Business, 2 Execution, 3 Past */
+function wipPart(lane) { return lane === 'Execution' ? 2 : lane === 'Past' ? 3 : 1; }
+function wipPartOf(values, row) { for (var i = row; i >= 0; i--) { var m = /^PART\s*(\d)/i.exec(clean((values[i] || [])[0])); if (m) return Number(m[1]); } return 0; }
+/* First empty row (0-based) inside a part, or the end of the sheet when the part is last */
+function wipFreeRow(values, part) {
+  var start = -1, end = values.length;
+  for (var i = 0; i < values.length; i++) {
+    var m = /^PART\s*(\d)/i.exec(clean((values[i] || [])[0]));
+    if (m && start < 0 && Number(m[1]) === part) start = i;
+    else if (m && start >= 0) { end = i; break; }
+  }
+  if (start < 0) return { err: { code: 'no_part', message: 'Part ' + part + ' was not found in the WIP sheet.' } };
+  for (var j = start + 2; j < end; j++) { if (!(values[j] || []).some(function (c) { return clean(c); })) return { row: j }; }
+  if (end === values.length) return { row: end };
+  return { err: { code: 'no_room', message: 'Part ' + part + ' of the WIP sheet has no empty row. Add a blank row there, then try again.' } };
+}
+function wipDetails(p, budget) { return [p.client || '', p.brand || '', p.name || '', p.type || '', p.start || '', p.keyLive || '', p.end || '', p.status || '', p.pic || '', p.supportedBy || '', p.requirement || '', budget || '']; }
+function wipBudget(p, r) { return S.canEdit ? ((S.budgets[p.id] && S.budgets[p.id].amount) || '') : (r.row >= 0 ? (r.values[r.row] || [])[11] || '' : ''); }
+/* Write the update into the WIP sheet: both week columns on the project's row, or a new row in its part */
+function wipPush(p, prev, cur) {
+  if (!S.mcp) return Promise.reject({ code: 'not_granted' });
+  var sid = wipSheetIdNow();
+  return wipRow(p).then(function (r) {
+    var cells = [wipCell(prev), wipCell(cur)];
+    if (r.row >= 0) return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'M' + (r.row + 1) + ':N' + (r.row + 1), values: [cells] }).then(function () { return 'row ' + (r.row + 1); });
+    var f = wipFreeRow(r.values, wipPart(p.lane));
+    if (f.err) return Promise.reject(f.err);
+    return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (f.row + 1) + ':N' + (f.row + 1), values: [wipDetails(p, wipBudget(p, r)).concat(cells)] }).then(function () { return 'new row ' + (f.row + 1); });
+  });
+}
+/* Write a project's details (columns A to L) into the WIP sheet. Old = the project before the edit, so a renamed project is still found.
+   A lane change moves the row into the other part, keeping its week updates. */
+function wipPushDetails(old, nu) {
+  if (!S.mcp) return Promise.reject({ code: 'not_granted' });
+  var sid = wipSheetIdNow();
+  return wipRow(old).then(function (r) {
+    var det = wipDetails(nu, S.canEdit && nu.newBudget !== undefined ? nu.newBudget : wipBudget(nu, r)), part = wipPart(nu.lane);
+    /* only the fields edited in the app replace the sheet's cells; the rest keep what the sheet has now */
+    if (r.row >= 0) { var was = r.values[r.row] || [], ch = nu.changed || null; det = det.map(function (x, i) { return ch && !ch[i] ? (was[i] == null ? '' : was[i]) : x; }); }
+    if (r.row >= 0 && nu.changed && !nu.changed.some(Boolean) && wipPartOf(r.values, r.row) === part) return Promise.resolve('no change');
+    if (r.row >= 0 && wipPartOf(r.values, r.row) === part)
+      return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (r.row + 1) + ':L' + (r.row + 1), values: [det] }).then(function () { return 'row ' + (r.row + 1); });
+    var f = wipFreeRow(r.values, part);
+    if (f.err) return Promise.reject(f.err);
+    var v = r.row >= 0 ? r.values[r.row] || [] : [], mn = [v[12] || '', v[13] || ''];
+    if (r.row < 0) { var wk = weeks(nu); if (wk) mn = [wipCell(wk.prev), wipCell(wk.cur)]; }
+    return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (f.row + 1) + ':N' + (f.row + 1), values: [det.concat(mn)] }).then(function () {
+      if (r.row < 0) return 'new row ' + (f.row + 1);
+      var blank = []; for (var k = 0; k < 14; k++) blank.push('');
+      return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (r.row + 1) + ':N' + (r.row + 1), values: [blank] }).then(function () { return 'moved to row ' + (f.row + 1); });
+    });
+  });
+}
+function wipErrText(e) {
+  var c = e && e.code;
+  return c === 'no_part' || c === 'no_room' ? e.message : c === 'tool_error' ? 'You may not have edit access to the WIP sheet.' : mcpErr(e, GSHEETS);
 }
 function saveUpdate(o, btn) {
   if (!needDb()) return;
   if (!o.projectId) { toast('Pick a project for this update.', true); return; }
-  if (!o.done && !o.next) { toast('Write what has been done or the next action steps.', true); return; }
-  var done = busy(btn, 'Posting…');
-  S.db.collection('updates').add({ projectId: o.projectId, done: o.done || '', next: o.next || '', link: safeUrl(o.link), author: S.me.id || '', date: todayIso(), at: Date.now() })
-    .then(function () { closeSheet(); toast('Update posted'); }, function (e) { done(); toast(dbErr(e), true); });
+  if (!o.done && !o.next) { toast('Fill in Next week updates: what has been done or the next action steps.', true); return; }
+  var done = busy(btn, 'Posting…'), p = projectById(o.projectId);
+  var prev = { done: clean(o.prevDone), next: clean(o.prevNext) }, cur = { done: clean(o.done), next: clean(o.next) };
+  S.db.collection('updates').add({ projectId: o.projectId, done: cur.done, next: cur.next, prevDone: prev.done, prevNext: prev.next, weeks: true, link: safeUrl(o.link), author: S.me.id || '', date: todayIso(), at: Date.now() })
+    .then(function (saved) {
+      closeSheet();
+      if (saved && saved.wipSync === 'queued') { toast('Update posted. Queued for Black Fox Updates.'); return; }
+      if (saved && saved.wipSync === 'not_queued') { toast('Update posted in the app. Black Fox Updates sync is unavailable for this post.', true); return; }
+      if (!p) { toast('Update posted'); return; }
+      toast('Update posted. Writing it to the WIP sheet…');
+      wipPush(p, prev, cur).then(function (where) { toast('Update posted and written to the WIP sheet (' + where + ').'); }, function (e) {
+        toast('Update posted in the app, but the WIP sheet was not changed. ' + wipErrText(e), true);
+      });
+    }, function (e) { done(); toast(dbErr(e), true); });
 }
 function mailSaveSheet(m) {
   var opts = live().map(function (p) { return '<option value="' + esc(p.id) + '"' + (m.project && m.project.id === p.id ? ' selected' : '') + '>' + esc(p.brand + ' · ' + p.name) + '</option>'; }).join('');
@@ -3139,6 +3313,7 @@ function bfcExport(btn) {
   S.brands.forEach(function (x) { docs['brands/' + x.id] = strip(x); });
   S.updates.forEach(function (x) { docs['updates/' + x.id] = strip(x); });
   S.training.forEach(function (x) { docs['training/' + x.id] = strip(x); });
+  (S.removed || []).forEach(function (x) { docs['removed/' + x.id] = strip(x); });
   Object.keys(S.budgets || {}).forEach(function (k) { docs['budgets/' + k] = S.budgets[k]; });
   if (S.settings && Object.keys(S.settings).length) docs['settings/app'] = S.settings;
   if (S.people && S.people.length) docs['owner/people'] = { list: S.people, updatedAt: todayIso() };
@@ -3193,9 +3368,11 @@ function syncWip(btn) {
   var done = busy(btn, 'Syncing…');
   readTool(GSHEETS, 'get_values', { spreadsheetId: sid, range: 'A1:N400' }, { cache: false }).then(function (pl) {
     var rows = parseWip((pl && pl.values) || []), t = todayIso(), ops = [], added = 0, changed = 0, ids = {};
+    var gone = removedKeys(), skipped = 0;
     S.projects.forEach(function (p) { ids[p.id] = 1; });
     rows.forEach(function (r) {
       var key = projKey(r.brand, r.name);
+      if (gone[key]) { skipped++; return; }
       var ex = S.projects.find(function (p) { return (p.key || projKey(p.brand, p.name)) === key; });
       var wip = { done: r.done, next: r.next, prevDone: r.prevDone, prevNext: r.prevNext, syncedAt: t };
       var base = { client: r.client, brand: r.brand, name: r.name, type: r.type, lane: r.lane, start: r.start, keyLive: r.keyLive, end: r.end, status: r.status,
@@ -3219,7 +3396,7 @@ function syncWip(btn) {
       }
     });
     ops.push(S.db.doc('settings/app').set(Object.assign({}, S.settings, { lastSync: t })));
-    return Promise.all(ops).then(function () { done(); toast('WIP sheet synced: ' + added + ' new, ' + changed + ' updated.'); });
+    return Promise.all(ops).then(function () { done(); toast('WIP sheet synced: ' + added + ' new, ' + changed + ' updated' + (skipped ? ', ' + skipped + ' deleted ones skipped' : '') + '.'); });
   }).catch(function (e) { done(); toast(e && e.code && !/^(invalid_argument|quota_exceeded|resource_exhausted|revoked)$/.test(e.code) ? mcpErr(e, GSHEETS) : dbErr(e), true); });
 }
 
@@ -3318,6 +3495,68 @@ var ACT = {
     try { navigator.clipboard.writeText(s.prompt).then(function () { toast('Prompt copied. Paste it into Google Flow.'); }, function () { toast('Select the prompt text and copy it.', true); }); } catch (e) { toast('Select the prompt text and copy it.', true); }
   },
   bsRules: function () { rulesSheet(); },
+  delEvent: function (el) {
+    var e = EV_INDEX[el.dataset.id];
+    if (!e || !e.mine || !S.isOwner) return;
+    var when = e.allDay ? fmtDate(e.start, true) + ' · all day' : fmtDate(isoOf(e.start), true) + ' · ' + hm(e.start) + '–' + hm(e.end);
+    openSheet(sheetHead('Cancel this meeting?', 'Google Calendar') + '<p><b>' + esc(e.title) + '</b><br><span class="muted">' + esc(when) + '</span></p>' +
+      '<p>This deletes it from your Google Calendar' + (e.guests ? ' and emails a cancellation to ' + (e.guests === 1 ? 'the 1 guest' : 'all ' + e.guests + ' guests') : '') + (e.rooms.length ? '. The meeting room is freed' : '') + '. It cannot be undone.</p>' +
+      (e.repeat ? '<p class="small muted">This is a repeating meeting. Only this date is cancelled. The rest of the series stays.</p>' : '') +
+      '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Keep it</button><button type="button" class="btn primary" data-act="delEventYes" data-id="' + esc(e.id) + '">' + I.trash + 'Cancel meeting</button></div>');
+  },
+  delEventYes: function (el) {
+    var e = EV_INDEX[el.dataset.id];
+    if (!e || !e.mine || !S.isOwner || !S.mcp) return;
+    var d = busy(el, 'Cancelling…');
+    S.mcp.callTool(GCAL, 'delete_event', { eventId: e.id, notificationLevel: 'ALL' }).then(function () {
+      closeSheet(); toast('Meeting cancelled: ' + e.title);
+      if (S.mcp.invalidate) S.mcp.invalidate(GCAL, 'list_events').catch(function () {});
+      S.roomDays = {}; S.today.state = 'idle'; loadToday(); if (S.route.view === 'calendar') loadCal();
+    }, function (x) {
+      d(); var c = x && x.code;
+      toast(c === 'server_unavailable' || c === 'upstream_error' ? 'Google Calendar did not confirm. Check your calendar before you try again.' : mcpErr(x, GCAL), true);
+    });
+  },
+  updShift: function () {
+    var g = function (id) { return document.getElementById(id); };
+    if (!g('uf-done')) return;
+    g('uf-pdone').value = g('uf-done').value; g('uf-pnext').value = g('uf-next').value; g('uf-done').value = ''; g('uf-next').value = '';
+    var f = g('updForm'); if (f) f.dataset.dirty = '1';
+    g('uf-done').focus();
+  },
+  delProject: function (el) {
+    var p = projectById(el.dataset.id);
+    if (!p || !canDelProject()) return;
+    var n = projUpdates(p.id).length;
+    openSheet(sheetHead('Delete this project?', p.client + ' · ' + p.brand) + '<p>This removes <b>' + esc(p.name) + '</b>' + (n ? ', its ' + n + ' update' + (n > 1 ? 's' : '') : '') + ' and its budget from the app for everyone. It cannot be undone.</p>' +
+      '<p class="small muted">Files in Google Drive and the timeline sheets stay. If the project is still in the WIP sheet, Sync WIP sheet will not bring it back.</p>' +
+      '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Keep it</button><button type="button" class="btn primary" data-act="delProjectYes" data-id="' + esc(p.id) + '">' + I.trash + 'Delete project</button></div>');
+  },
+  delProjectYes: function (el) {
+    var p = projectById(el.dataset.id);
+    if (!p || !canDelProject() || !needDb()) return;
+    var d = busy(el, 'Deleting…'), key = p.key || projKey(p.brand, p.name);
+    var ops = [S.db.doc('removed/' + slug(key || p.id)).set({ key: key, name: p.name, brand: p.brand || '', client: p.client || '', by: S.me.id || '', at: Date.now() })];
+    projUpdates(p.id).forEach(function (u) { ops.push(S.db.doc('updates/' + u.id).delete()); });
+    if (S.canEdit && S.budgets && S.budgets[p.id]) ops.push(S.db.doc('budgets/' + p.id).delete().catch(function () {}));
+    Promise.all(ops).then(function () { return S.db.doc('projects/' + p.id).delete(); }).then(function () {
+      closeSheet(); if (S.route.view === 'project') location.hash = 'team'; toast(p.name + ' deleted');
+    }, function (e) { d(); toast(dbErr(e), true); });
+  },
+  delUpdate: function (el) {
+    var u = S.updates.find(function (x) { return x.id === el.dataset.id; });
+    if (!canDelUpdate(u)) return;
+    var p = projectById(u.projectId), txt = u.next || u.done || '';
+    openSheet(sheetHead('Delete this update?', p ? p.name : 'Update') + '<p>This removes the ' + esc(isIso(u.date) ? fmtDate(u.date, true) : '') + ' update by ' + esc(authorName(u.author)) + ' for everyone. It cannot be undone.</p>' +
+      (txt ? '<div class="next-box" style="margin:10px 0">' + esc(txt.length > 220 ? txt.slice(0, 220) + '…' : txt) + '</div>' : '') +
+      '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Keep it</button><button type="button" class="btn primary" data-act="delUpdateYes" data-id="' + esc(u.id) + '">' + I.trash + 'Delete update</button></div>');
+  },
+  delUpdateYes: function (el) {
+    var id = el.dataset.id, u = S.updates.find(function (x) { return x.id === id; });
+    if (!canDelUpdate(u) || !needDb()) return;
+    var d = busy(el, 'Deleting…');
+    S.db.doc('updates/' + id).delete().then(function () { closeSheet(); toast('Update deleted'); }, function (e) { d(); toast(dbErr(e), true); });
+  },
   bsDelete: function () { bsDeleteSheet(); },
   bsDeleteYes: function (el) {
     var id = S.bs.curId, d = busy(el, 'Deleting…');
@@ -3380,6 +3619,7 @@ document.addEventListener('change', function (e) {
   if (k === 'foxPlay') { kuroSetCfg('play', Number(el.value) || 0); S.desk.playAt = Date.now(); repaint(); return; }
   if (k === 'bfcImport') { bfcImport(el.files && el.files[0]); el.value = ''; return; }
   if (k === 'bsUpload') { bsUpload(el.files, el.getAttribute('data-r') || ''); el.value = ''; return; }
+  if (k === 'updProject') { updFill(el.value); return; }
   if (k === 'jump' && el.value) { location.hash = 'project-' + el.value; }
   else if (k === 'teamWho') { S.teamWho = el.value; repaint(); }
   else if (k === 'evSlot') drawRooms();
@@ -3459,6 +3699,7 @@ function subscribe() {
   coll('brands', 'brands');
   coll('updates', 'updates');
   coll('training', 'training');
+  coll('removed', 'removed');
   db.doc('settings/app').onSnapshot(function (s) {
     var prev = S.settings || {}, first = !S.loaded.settings;
     S.settings = s.exists ? s.data() : {}; S.loaded.settings = true;
