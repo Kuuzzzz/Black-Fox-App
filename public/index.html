@@ -832,6 +832,7 @@ function parseTimeline(values) {
   return { info: info.slice(0, 8), rows: rows };
 }
 function loadTimeline(p, force) {
+  if (S.google === false) return Promise.resolve();
   var id = sheetId(p.timelineIntUrl);
   if (!id) return Promise.resolve();
   var cur = S.timelines[p.id];
@@ -889,6 +890,7 @@ function rankMail(threads, unread) {
   return out.slice(0, 15);
 }
 function loadInbox(force) {
+  if (S.google === false) return;
   if ((!S.isOwner && S.route.view !== 'fox') || S.inbox.state === 'loading') return; /* team members: only for their own Kuro */
   if (!S.mcp) { S.inbox.state = 'error'; S.inbox.error = mcpErr({ code: 'not_granted' }, GMAIL); repaint(); return; }
   S.inbox.state = 'loading'; S.inbox.error = ''; repaint();
@@ -912,6 +914,7 @@ var MIME = {
   'application/pdf': ['PDF', 'PDFs']
 };
 function loadFiles(p, force) {
+  if (S.google === false) return;
   var fid = folderId(p.folderUrl);
   if (!fid) return;
   var cur = S.files[p.id];
@@ -931,6 +934,7 @@ function mailQuery(p) {
   return (brand ? '"' + brand + '" ' : '') + words.join(' ') + ' newer_than:180d -category:promotions -category:social';
 }
 function loadMails(p, force) {
+  if (S.google === false) return;
   if (!S.isOwner) return;
   var cur = S.mails[p.id];
   if (cur && (cur.state === 'loading' || (cur.state === 'ready' && !force))) return;
@@ -976,6 +980,7 @@ function listEvents(email, startIso, days) {
   });
 }
 function loadToday() {
+  if (S.google === false) return;
   if ((!S.isOwner && S.route.view !== 'fox') || S.today.state === 'loading') return;
   if (!S.mcp) { S.today.state = 'error'; S.today.error = mcpErr({ code: 'not_granted' }, GCAL); repaint(); return; }
   S.today.state = 'loading'; repaint();
@@ -983,6 +988,7 @@ function loadToday() {
     function (e) { S.today.state = 'error'; S.today.error = mcpErr(e, GCAL); }).then(repaint);
 }
 function loadCal() {
+  if (S.google === false) return;
   var c = S.cal;
   if (!S.isOwner) return;
   var start = c.mode === 'week' ? mondayOf(c.date) : c.date, days = c.mode === 'week' ? 7 : 1;
@@ -1133,6 +1139,7 @@ function savePeopleSoon() {
   }, 1500);
 }
 function gatherPeople() {
+  if (S.google === false) return Promise.resolve();
   if (!S.isOwner || S.gathering) return Promise.resolve();
   S.gathering = true;
   return readTool(GMAIL, 'search_threads', { query: 'newer_than:90d {from:' + DOMAIN + ' to:' + DOMAIN + ' cc:' + DOMAIN + '}', pageSize: 50, view: 'THREAD_VIEW_METADATA_ONLY' }, { cache: { staleTime: 300000 } })
@@ -1143,10 +1150,10 @@ function gatherPeople() {
 /* ------------------------------------------------------------ shell */
 function navItems() {
   var items = [['my-day', 'My Day', I.day], ['clients', 'Clients', I.clients], ['team', 'Team WIP', I.team]];
-  if (S.isOwner) items.push(['calendar', 'Calendar', I.calendar]);
+  if (S.isOwner && S.google) items.push(['calendar', 'Calendar', I.calendar]);
   items.push(['training', 'Training', I.training]);
   /* AM Brief Studio runs online and is Heng's own working space */
-  if (S.isOwner) items.push(['am-brief', 'AM Brief', I.brief]);
+  if (S.isOwner && S.ai) items.push(['am-brief', 'AM Brief', I.brief]);
   items.push(['fox', 'Kuro', I.day, 'desk']); /* everyone gets their own Kuro, watching their own mail and calendar */
   return items;
 }
@@ -1214,7 +1221,7 @@ VIEWS['my-day'] = {
     region('daySub', esc(S.isOwner ? 'Approvals and next actions first. Your inbox and team calendar stay private to you.' : 'Your projects and next actions this week.'));
     var t = todayIso(), wk = addDays(t, 7);
     var stale = live().filter(isStale);
-    if (S.isOwner) {
+    if (S.isOwner && S.google) {
       var appr = S.inbox.items.filter(function (m) { return m.score >= 80; });
       var due = deadlinesIn(t, wk);
       region('halos', halo(appr.length, 'Approvals waiting', appr.length / Math.max(S.inbox.items.length, 1), '#my-day') +
@@ -1398,7 +1405,7 @@ VIEWS.project = {
       '<div class="cols-main"><div class="stack">' + timelineCard(p) + updatesCard(p, a) + '</div>' +
       '<div class="stack"><section class="card"><div class="card-head"><h2>Details</h2></div><div class="facts">' + facts + '</div></section>' +
       '<section class="card"><div class="card-head"><h2>Files &amp; timelines</h2></div><div class="links">' + links + '</div>' +
-      '<p class="muted small" style="margin:12px 0 0">Build INT_ first. When it is ready, copy it as EXT_ and share only EXT_ with the client.</p></section>' + filesCard(p) + (S.isOwner ? mailsCard(p) : '') + '</div></div>');
+      '<p class="muted small" style="margin:12px 0 0">Build INT_ first. When it is ready, copy it as EXT_ and share only EXT_ with the client.</p></section>' + filesCard(p) + (S.isOwner && S.google ? mailsCard(p) : '') + '</div></div>');
   }
 };
 function linkTile(url, icon, title, sub) {
@@ -1407,6 +1414,7 @@ function linkTile(url, icon, title, sub) {
   return '<button type="button" class="link-tile missing" data-act="editProject" data-id="' + esc(S.route.id) + '"><span class="ic">' + icon + '</span><span class="grow"><b>' + esc(title) + '</b><small>Add the link</small></span>' + I.plus + '</button>';
 }
 function filesCard(p) {
+  if (S.google === false) return '';
   var head = '<div class="card-head"><h2>Docs, Slides &amp; Sheets</h2>' + (p.folderUrl ? '<button type="button" class="icon-btn" data-act="refreshFiles" data-id="' + esc(p.id) + '" aria-label="Reload files">' + I.refresh + '</button>' : '') + '</div>';
   if (!folderId(p.folderUrl)) return '<section class="card">' + head + '<div class="empty"><b>No project folder linked</b>Link the Drive folder to see its briefs, decks and sheets here, always up to date.' +
     '<div class="row wrap" style="justify-content:center;margin-top:12px"><button type="button" class="btn sm primary" data-act="findFolder" data-id="' + esc(p.id) + '">' + I.search + 'Find the folder</button><button type="button" class="btn sm" data-act="editProject" data-id="' + esc(p.id) + '">Paste a link</button></div></div></section>';
@@ -1444,6 +1452,7 @@ function folderSheet(p) {
   }, function (e) { var el = $('#folderList'); if (el) el.innerHTML = '<div class="banner"><span class="grow">' + esc(mcpErr(e, GDRIVE)) + '</span></div>'; });
 }
 function timelineCard(p) {
+  if (S.google === false) return '';
   var head = '<div class="card-head"><h2>Master timeline</h2>' + (p.timelineIntUrl ? '<div class="row"><button type="button" class="icon-btn" data-act="refreshTimeline" data-id="' + esc(p.id) + '" aria-label="Reload timeline">' + I.refresh + '</button></div>' : '') + '</div>';
   if (!p.timelineIntUrl) return '<section class="card">' + head + '<div class="empty"><b>No INT_ timeline linked</b>When the quotation is approved, build the INT_ master timeline and paste its link here.<div style="margin-top:12px"><button type="button" class="btn" data-act="editProject" data-id="' + esc(p.id) + '">Link the INT_ timeline</button></div></div></section>';
   var t = S.timelines[p.id];
@@ -1492,7 +1501,7 @@ VIEWS.team = {
   paint: function () {
     var all = live(), stale = all.filter(isStale);
     region('teamSub', esc(all.length + ' live projects · ' + stale.length + ' need an update this week'));
-    region('teamActs', (S.isOwner ? '<button type="button" class="btn" data-act="syncWip">' + I.refresh + 'Sync WIP sheet</button>' : '') +
+    region('teamActs', (S.isOwner && S.google ? '<button type="button" class="btn" data-act="syncWip">' + I.refresh + 'Sync WIP sheet</button>' : '') +
       '<button type="button" class="btn" data-act="copyWip">' + I.copy + 'Copy WIP summary</button><button type="button" class="btn primary" data-act="addUpdate">' + I.plus + 'Update</button>');
     region('laneSeg', [['all', 'All'], ['New Business', 'New business'], ['Execution', 'Execution']].map(function (x) { return '<button type="button" data-act="teamLane" data-l="' + x[0] + '" class="' + (S.teamLane === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join(''));
     var names = {}; all.forEach(function (p) { peopleIn(p.pic).forEach(function (n) { names[norm(n)] = names[norm(n)] || n; }); });
@@ -2188,6 +2197,7 @@ function bsExport(key, btn) {
 
 /* ---------------------------------------------------------------- Drive folders list (desktop studio exports included) */
 function loadBriefs(force) {
+  if (S.google === false) return;
   var b = S.briefs;
   if (!S.isOwner || b.state === 'loading') return;
   if (!force && b.state === 'ready' && Date.now() - b.at < 120000) return;
@@ -2902,7 +2912,7 @@ function roamBubble(show) {
   clearTimeout(R.bubT);
   R.bub = !!show;
   if (!show) { b.hidden = true; b.innerHTML = ''; return; }
-  var c = { face: foxQuiet() ? 'curious' : 'happy', badge: 'paw', title: foxQuiet() ? 'Mm? I was napping.' : 'Hi, I\'m Kuro!', text: S.isOwner ? foxSummary() : 'I\'m keeping an eye on things here.' };
+  var c = { face: foxQuiet() ? 'curious' : 'happy', badge: 'paw', title: foxQuiet() ? 'Mm? I was napping.' : 'Hi, I\'m Kuro!', text: S.isOwner && S.google !== false ? foxSummary() : 'I\'m keeping an eye on things here.' };
   b.innerHTML = '<div class="fox-face"><img src="' + KURO_IMG[FOX_FACE[c.face]] + '" alt=""><span class="fox-badge"><svg viewBox="0 0 24 24">' + FOX_BADGE[c.badge] + '</svg></span></div>' +
     '<div class="fox-msg"><b>' + esc(c.title) + '</b><span>' + esc(c.text) + '</span><div class="fox-acts">' +
     '<a class="btn sm primary" href="#fox">Open Kuro</a><button type="button" class="btn sm ghost" data-act="roamHide">Hide for today</button></div></div>';
@@ -3107,15 +3117,15 @@ function settingsSheet() {
     '<li>Pin it to the taskbar. It opens in its own window, like any program.</li>' +
     '<li>On a phone or tablet: Share → <b>Add to Home Screen</b>.</li></ol>' +
     (S.isOwner ? '<hr><div class="label" style="margin-bottom:8px">Budget access</div><p>' + (BFC ? 'Budgets show only to you and the admins listed in Cloudflare (ADMIN_EMAILS). Everyone else sees a lock.' : 'Budgets show only to people you give <b>edit</b> access to this app (Share → Can edit). Everyone else sees a lock.') + '</p>' +
-      '<hr><form id="setForm"><div class="field"><label for="sf-wip">WIP sheet link or ID</label><input class="input" id="sf-wip" name="wip" value="' + esc(sid) + '"></div>' +
+      (S.google === false ? '' : '<hr><form id="setForm"><div class="field"><label for="sf-wip">WIP sheet link or ID</label><input class="input" id="sf-wip" name="wip" value="' + esc(sid) + '"></div>' +
       '<div class="row wrap"><button type="submit" class="btn">Save</button><button type="button" class="btn primary" data-act="syncWip">' + I.refresh + 'Sync now</button><a class="btn ghost" href="https://docs.google.com/spreadsheets/d/' + esc(sheetId(sid) || sid) + '/edit" target="_blank" rel="noopener">Open sheet</a></div></form>' +
-      (S.settings.lastSync ? '<p class="small" style="margin-top:10px">Last synced ' + esc(fmtDate(S.settings.lastSync)) + '.</p>' : '') : '') +
+      (S.settings.lastSync ? '<p class="small" style="margin-top:10px">Last synced ' + esc(fmtDate(S.settings.lastSync)) + '.</p>' : '')) : '') +
     (S.isOwner ? '<hr><div class="label" style="margin-bottom:8px">' + (BFC ? 'Bring data from claude.ai' : 'Move to the Cloudflare app') + '</div>' +
       (BFC ? '<p>In the old claude.ai app, press <b>Export data</b> in Settings. Then pick that file here. Items with the same name are replaced.</p>' +
         '<label class="btn">' + I.upload + 'Import from claude.ai<input class="sr" type="file" accept=".json,application/json" data-change="bfcImport"></label>'
       : '<p>Saves every project, update, brand, training item, budget, setting, AM brief and Kuro setting into one file for the new app.</p>' +
         '<button type="button" class="btn" data-act="bfcExport">' + I.copy + 'Export data</button>') : '') +
-    (BFC ? '<hr><div class="label" style="margin-bottom:8px">Google account</div><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own Google sign-in.</p><div class="row wrap"><a class="btn sm" href="/api/google/start">Reconnect Google</a><button type="button" class="btn sm ghost" data-act="bfcGoogleOff">Disconnect</button></div>'
+    (BFC && S.google === false ? '' : BFC ? '<hr><div class="label" style="margin-bottom:8px">Google account</div><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own Google sign-in.</p><div class="row wrap"><a class="btn sm" href="/api/google/start">Reconnect Google</a><button type="button" class="btn sm ghost" data-act="bfcGoogleOff">Disconnect</button></div>'
       : '<hr><p class="small">Gmail, Calendar, Drive and Sheets are read live with your own sign-in. Heng\'s inbox and team calendar only ever show to Heng.</p>'));
 }
 var BFC = !!(window.claude && window.claude.bfc);
@@ -3477,6 +3487,7 @@ function boot() {
     return meP.then(function (me) {
       S.me = { id: me.id, name: me.name || '', email: me.email || null };
       S.isOwner = !!me.isOwner; S.canEdit = !!(me.canEdit || me.isOwner);
+      S.google = me.googleReady !== false; S.ai = me.ai !== false; /* Cloudflare version: Google and Claude only when set up */
       S.ready = true;
       if (S.db) subscribe(); else { S.dbError = 'Saved projects are not available right now. Reload the page.'; ['projects', 'brands', 'updates', 'training'].forEach(function (k) { S.loaded[k] = true; }); }
       drawNav(); drawMe();

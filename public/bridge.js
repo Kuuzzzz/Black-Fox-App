@@ -107,7 +107,7 @@
   /* ---------------------------------------------------------------- user */
   var nameCache = {};
   var user = {
-    me: function () { return getMe().then(function (m) { return { id: m.id, name: m.name, email: m.email, isOwner: !!m.isOwner, canEdit: !!m.canEdit }; }); },
+    me: function () { return getMe().then(function (m) { return { id: m.id, name: m.name, email: m.email, isOwner: !!m.isOwner, canEdit: !!m.canEdit, googleReady: !!m.googleReady, ai: !!m.ai }; }); },
     profiles: function (ids) {
       var want = (ids || []).filter(function (i) { return i && !(i in nameCache); });
       var p = want.length ? api('/users?ids=' + encodeURIComponent(want.join(','))).then(function (r) { want.forEach(function (i) { nameCache[i] = (r[i] && r[i].name) || ''; }); }) : Promise.resolve();
