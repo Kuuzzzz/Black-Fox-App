@@ -96,7 +96,7 @@ async function currentUser(req, env, url) {
   if (!email) return null;
   const domain = low(env.ALLOWED_DOMAIN);
   if (domain && !email.endsWith('@' + domain)) throw new HttpError(403, 'forbidden', 'This app is only for @' + domain + ' accounts.');
-  const owner = email === low(env.OWNER_EMAIL);
+  const owner = String(env.OWNER_EMAIL || '').split(',').map(low).filter(Boolean).includes(email); /* one or more owners, comma-separated */
   const admins = String(env.ADMIN_EMAILS || '').split(',').map(low).filter(Boolean);
   return { email, owner, admin: owner || admins.includes(email) };
 }
