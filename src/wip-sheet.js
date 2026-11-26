@@ -42,10 +42,17 @@ function base64Url(bytes) {
 }
 
 async function serviceToken(config) {
-  const account = JSON.parse(config);
-  const der = Uint8Array.from(atob(account.private_key.replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
   const algorithm = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
-  const key = await crypto.subtle.importKey('pkcs8', der, algorithm, false, ['sign']);
+  let account, key;
+  try {
+    account = JSON.parse(config);
+    if (typeof account?.client_email !== 'string' || !account.client_email.endsWith('.iam.gserviceaccount.com') ||
+        typeof account.private_key !== 'string') throw new Error();
+    const der = Uint8Array.from(atob(account.private_key.replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
+    key = await crypto.subtle.importKey('pkcs8', der, algorithm, false, ['sign']);
+  } catch {
+    throw new Error('WIP Sheets credential must be a valid Google service account JSON key.');
+  }
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT', kid: account.private_key_id };
   const claims = { iss: account.client_email, scope: SHEETS_SCOPE, aud: TOKEN_URL, iat: now, exp: now + 600 };
