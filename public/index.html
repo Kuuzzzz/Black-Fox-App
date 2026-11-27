@@ -501,6 +501,28 @@ body.fox-on { overflow: hidden; }
 .roam-bub.fox-bubble { bottom: 86px; pointer-events: auto; }
 body.roam-on .view { padding-bottom: calc(var(--tab) + 110px + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 768px) { .roam { bottom: 0; } body.roam-on .view { padding-bottom: 110px; } body.roam-on .fox-back { bottom: 96px; } }
+/* Phones: Kuro walks in the top bar between the logo and your avatar, so he never covers cards or buttons */
+@media (max-width: 767px) {
+  .roam { top: env(safe-area-inset-top, 0px); bottom: auto; height: var(--top); }
+  .roam-kuro { bottom: 6px; height: 44px; }
+  .roam-kuro.s-sleep { height: 30px; } .roam-kuro.s-leap { height: 38px; } .roam-kuro.s-stretch { height: 32px; } .roam-kuro.s-run { height: 34px; }
+  .roam .fox-zzz { top: -4px; }
+  .roam-bub.fox-bubble { bottom: auto; top: calc(100% + 8px); }
+  body.roam-on .view { padding-bottom: calc(var(--tab) + 32px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (pointer: coarse) {
+  .btn.sm { height: 40px; }
+  .btn.icon-only { width: 40px; height: 40px; }
+  .wip-card .card-del { top: 8px; right: 8px; }
+  .wip-card .card-del + .client, .wip-card .card-del ~ .name { padding-right: 44px; }
+  .ev-del { width: 32px; height: 32px; }
+}
+.wip-card .foot { flex-wrap: wrap; }
+.banner .btn { flex: none; }
+@media (max-width: 767px) { .banner { flex-wrap: wrap; } .banner .grow { flex: 1 1 220px; } }
+.banner.wkb { background: var(--accent-dim); color: var(--hi); border-color: rgba(79, 216, 255, 0.25); }
+.banner .who-list { display: block; margin-top: 4px; color: var(--muted2); }
+
 .bs-up { cursor: pointer; position: relative; }
 .bs-tidybar { gap: 10px; margin: -6px 0 14px; }
 .bs-tidybar svg, .bs-up svg { width: 16px; height: 16px; }
@@ -580,6 +602,7 @@ var I = {
   x: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
   trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>'),
   edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>'),
+  check: svg('<path d="M5 12.5l4.5 4.5L19 7"/>'),
   ext: svg('<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'),
   copy: svg('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>')
@@ -750,12 +773,32 @@ function activity(p) {
 }
 function staleDays(p) { var a = activity(p); if (!a || !isIso(a.date)) return null; return daysBetween(a.date, todayIso()); }
 function isStale(p) { var d = staleDays(p); return d === null || d > 7; }
+/* Weekly WIP: an update counts for this week when it is dated this Monday or later. Friday to Sunday the app nudges. */
+function needsWeek(p) { var a = activity(p); return !a || !isIso(a.date) || a.date < mondayOf(todayIso()); }
+function isWrapUp() { var d = new Date().getDay(); return d === 5 || d === 6 || d === 0; }
+function picOf(p) { return peopleIn(p.pic)[0] || 'No PIC'; }
+function missingByPic(list) {
+  var g = {}; list.forEach(function (p) { var k = picOf(p); (g[k] = g[k] || []).push(p); });
+  return Object.keys(g).sort(function (a, b) { return g[b].length - g[a].length || a.localeCompare(b); }).map(function (k) { return { name: k, projects: g[k] }; });
+}
+/* End date as ISO; a month only ("October 2026") counts as the last day of that month */
+function endIso(p) {
+  var t = String(p.end || '').trim(), d = parseDate(t); if (d) return d;
+  var m = t.match(/^([A-Za-z]{3,9})\.?,?\s+(\d{4})$/);
+  if (m) { var mi = MONTHS.findIndex(function (x) { return x.indexOf(m[1].toLowerCase().slice(0, 3)) === 0; }); if (mi >= 0) return isoOf(new Date(Number(m[2]), mi + 1, 0)); }
+  return '';
+}
+function isOverdue(p) { var e = endIso(p); return p.lane !== 'Past' && !!e && e < todayIso() && !/complete|done|cancel/i.test(p.status || ''); }
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+function nameList(ps, max) { max = max || 4; return ps.slice(0, max).map(function (p) { return p.name; }).join(', ') + (ps.length > max ? ' and ' + (ps.length - max) + ' more' : ''); }
 function isMine(p) {
   var me = norm(S.me.name || ''), mail = (S.me.email || '').split('@')[0].toLowerCase();
   var hay = ' ' + norm((p.pic || '') + ' ' + (p.supportedBy || '')) + ' ';
   var tokens = me.split(' ').filter(function (x) { return x.length >= 3; });
   if (mail && mail.length >= 3) tokens.push(mail);
-  return tokens.some(function (t) { return hay.indexOf(' ' + t + ' ') >= 0 || hay.indexOf(t) >= 0; });
+  if (tokens.some(function (t) { return hay.indexOf(' ' + t + ' ') >= 0 || hay.indexOf(t) >= 0; })) return true;
+  var names = peopleIn((p.pic || '') + '\n' + (p.supportedBy || '')).map(norm).filter(function (x) { return x.length >= 4 && x.indexOf(' ') < 0; });
+  return tokens.some(function (t) { return names.some(function (x) { return t.indexOf(x) >= 0; }); });
 }
 function live() { return S.projects.filter(function (p) { return p.lane !== 'Past'; }); }
 function keyLiveIso(p) { return isIso(p.keyLiveIso) ? p.keyLiveIso : parseDate(p.keyLive); }
@@ -1222,7 +1265,7 @@ var paintQueued = false;
 function repaint() {
   if (paintQueued) return;
   paintQueued = true;
-  requestAnimationFrame(function () { paintQueued = false; VIEWS[S.route.view].paint(); drawMe(); });
+  requestAnimationFrame(function () { paintQueued = false; VIEWS[S.route.view].paint(); drawMe(); autoSync(); roamNudge(); });
 }
 function region(id, html) { var el = document.getElementById(id); if (el && el.__h !== html) { el.innerHTML = html; el.__h = html; } }
 function loadingNote() { return S.ready ? '' : '<div class="banner info"><span class="grow">Opening your Black Fox Center…</span></div>'; }
@@ -1244,7 +1287,7 @@ VIEWS['my-day'] = {
     paintLogos();
     var first = (S.me.name || 'there').split(' ')[0];
     var hello = $('#hello'); if (hello && hello.textContent !== first) hello.textContent = first;
-    region('dayBanner', loadingNote() + (S.dbError ? '<div class="banner"><span class="grow">' + esc(S.dbError) + '</span></div>' : ''));
+    region('dayBanner', loadingNote() + (S.dbError ? '<div class="banner"><span class="grow">' + esc(S.dbError) + '</span></div>' : '') + weekBanner());
     region('daySub', esc(S.isOwner && S.google !== false ? 'Approvals and next actions first. Your inbox and team calendar stay private to you.' : 'Your projects and next actions this week.'));
     var t = todayIso(), wk = addDays(t, 7);
     var stale = live().filter(isStale);
@@ -1268,6 +1311,24 @@ VIEWS['my-day'] = {
   }
 };
 
+/* Friday to Sunday: who still owes this week's WIP update */
+function weekBanner() {
+  if (!isWrapUp() || !S.loaded.projects || !S.loaded.updates) return '';
+  var mine = live().filter(isMine).filter(needsWeek);
+  if (mine.length) return '<div class="banner wkb"><span class="grow"><b>It\'s WIP day.</b> ' + esc(plural(mine.length, 'of your projects', 'of your projects') + (mine.length === 1 ? ' needs' : ' need') + ' this week\'s update: ' + nameList(mine, 3) + '.') + '</span>' +
+    '<button type="button" class="btn sm primary" data-act="addUpdate" data-id="' + esc(mine[0].id) + '">' + I.plus + 'Post update</button></div>';
+  if (!S.isOwner) return '';
+  var all = live().filter(needsWeek);
+  return all.length ? '<div class="banner wkb"><span class="grow"><b>Friday WIP check:</b> ' + esc(plural(all.length, 'team project') + (all.length === 1 ? ' still needs' : ' still need') + ' this week\'s update.') + '</span><a class="btn sm" href="#team">See who</a></div>' : '';
+}
+function nudgeText() {
+  var g = missingByPic(live().filter(needsWeek));
+  return ['Hi team, it\'s Friday WIP time. Please post this week\'s update in Black Fox Center (Team WIP, then Update) for:'].concat(g.map(function (x) { return '• ' + x.name + ': ' + x.projects.map(function (p) { return p.name; }).join(', '); })).concat(['', 'Previous week: what was done and the next steps. Next week: what is done so far and what comes next. Thank you!']).join('\n');
+}
+function copyOut(text, title, ok) {
+  var fallback = function () { openSheet(sheetHead(title, 'Team WIP') + '<p>Select all and copy.</p><textarea class="input" id="copyText" style="min-height:240px">' + esc(text) + '</textarea>'); var t = $('#copyText'); t.focus(); t.select(); };
+  try { navigator.clipboard.writeText(text).then(function () { toast(ok); }, fallback); } catch (e) { fallback(); }
+}
 function inboxCard() {
   var st = S.inbox, body;
   if (st.state === 'error') body = '<div class="banner"><span class="grow">' + esc(st.error) + '</span></div>';
@@ -1425,8 +1486,8 @@ VIEWS.project = {
       linkTile(p.timelineExtUrl, I.share, 'EXT_ master timeline', 'Client copy, share this one');
     region('projBody',
       '<div class="page-head"><div><div class="eyebrow">' + esc(p.client + ' · ' + p.brand) + '</div><h1 class="h-xl" style="margin-top:8px">' + esc(p.name) + '</h1>' +
-      '<div class="row wrap" style="margin-top:12px">' + laneChip(p.lane) + statusChip(p.status) + (p.type ? '<span class="chip dim">' + esc(p.type) + '</span>' : '') + (isStale(p) && p.lane !== 'Past' ? '<span class="chip warn">Needs an update</span>' : '') + '</div></div>' +
-      '<div class="actions">' + (canDelProject() ? '<button type="button" class="btn ghost" data-act="delProject" data-id="' + esc(p.id) + '">' + I.trash + 'Delete</button>' : '') + '<button type="button" class="btn" data-act="editProject" data-id="' + esc(p.id) + '">' + I.edit + 'Edit</button><button type="button" class="btn primary" data-act="addUpdate" data-id="' + esc(p.id) + '">' + I.plus + 'Update</button></div></div>' +
+      '<div class="row wrap" style="margin-top:12px">' + laneChip(p.lane) + statusChip(p.status) + (p.type ? '<span class="chip dim">' + esc(p.type) + '</span>' : '') + (isStale(p) && p.lane !== 'Past' ? '<span class="chip warn">Needs an update</span>' : '') + (isOverdue(p) ? '<span class="chip bad">Ended ' + esc(fmtDate(endIso(p))) + '</span>' : '') + '</div></div>' +
+      '<div class="actions">' + (canDelProject() ? '<button type="button" class="btn ghost" data-act="delProject" data-id="' + esc(p.id) + '">' + I.trash + 'Delete</button>' : '') + (p.lane !== 'Past' ? '<button type="button" class="btn" data-act="markDone" data-id="' + esc(p.id) + '">' + I.check + 'Mark completed</button>' : '') + '<button type="button" class="btn" data-act="editProject" data-id="' + esc(p.id) + '">' + I.edit + 'Edit</button><button type="button" class="btn primary" data-act="addUpdate" data-id="' + esc(p.id) + '">' + I.plus + 'Update</button></div></div>' +
       '<section class="card" style="margin-bottom:14px"><div class="card-head"><h2>Workflow</h2><span class="muted small">Stage ' + st + ' of 6 · tap a stage to move</span></div><div class="stepper">' + steps + '</div>' +
       '<div class="stage-note"><b>' + STAGES[st - 1] + ':</b> ' + esc(STAGE_NOTE[st - 1]) + '</div></section>' +
       '<div class="cols-main"><div class="stack">' + timelineCard(p) + updatesCard(p, a) + '</div>' +
@@ -1552,21 +1613,28 @@ VIEWS.team = {
       '<div id="teamBanner"></div><div id="lanes"></div>';
   },
   paint: function () {
-    var all = live(), stale = all.filter(isStale);
-    region('teamSub', esc(all.length + ' live projects · ' + stale.length + ' need an update this week'));
+    var all = live(), stale = all.filter(isStale), late = all.filter(isOverdue), wk = isWrapUp() ? all.filter(needsWeek) : [];
+    if (S.teamLane === 'overdue' && !late.length) S.teamLane = 'all';
+    region('teamSub', esc(plural(all.length, 'live project') + ' · ' + stale.length + ' need an update this week' + (late.length ? ' · ' + late.length + ' past end date' : '')));
     region('teamActs', (S.isOwner && S.google ? '<button type="button" class="btn" data-act="syncWip">' + I.refresh + 'Sync WIP sheet</button>' : '') +
       '<button type="button" class="btn" data-act="copyWip">' + I.copy + 'Copy WIP summary</button><button type="button" class="btn primary" data-act="addUpdate">' + I.plus + 'Update</button>');
-    region('laneSeg', [['all', 'All'], ['New Business', 'New business'], ['Execution', 'Execution']].map(function (x) { return '<button type="button" data-act="teamLane" data-l="' + x[0] + '" class="' + (S.teamLane === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join(''));
+    region('laneSeg', [['all', 'All'], ['New Business', 'New business'], ['Execution', 'Execution']].concat(late.length ? [['overdue', 'Past end date']] : []).map(function (x) { return '<button type="button" data-act="teamLane" data-l="' + x[0] + '" class="' + (S.teamLane === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join(''));
     var names = {}; all.forEach(function (p) { peopleIn(p.pic).forEach(function (n) { names[norm(n)] = names[norm(n)] || n; }); });
     var sel = $('#whoSel');
     var opts = '<option value="">Everyone</option>' + Object.keys(names).sort().map(function (k) { return '<option value="' + esc(k) + '"' + (S.teamWho === k ? ' selected' : '') + '>' + esc(names[k]) + '</option>'; }).join('');
     if (sel && sel.__h !== opts) { sel.innerHTML = opts; sel.__h = opts; }
-    region('teamBanner', loadingNote() + (stale.length ? '<div class="banner"><span class="grow"><b>' + stale.length + ' projects</b> have no update in the last 7 days: ' + esc(stale.slice(0, 4).map(function (p) { return p.name; }).join(', ')) + (stale.length > 4 ? '…' : '') + '</span></div>' : ''));
+    var wkBan = wk.length ? '<div class="banner wkb"><span class="grow"><b>Friday WIP check:</b> ' + esc(plural(wk.length, 'project') + (wk.length === 1 ? ' still needs' : ' still need') + ' this week\'s update.') +
+        '<span class="who-list">' + missingByPic(wk).map(function (g) { return '<b>' + esc(g.name) + '</b>: ' + esc(nameList(g.projects, 3)); }).join(' · ') + '</span></span>' +
+        (S.isOwner ? '<button type="button" class="btn sm" data-act="copyNudge">' + I.copy + 'Copy reminder</button>' : '') + '</div>' : '';
+    var staleBan = !wk.length && stale.length ? '<div class="banner"><span class="grow"><b>' + esc(plural(stale.length, 'project')) + '</b> ' + (stale.length === 1 ? 'has' : 'have') + ' no update in the last 7 days: ' + esc(nameList(stale, 4)) + '</span></div>' : '';
+    var lateBan = late.length && S.teamLane !== 'overdue' ? '<div class="banner"><span class="grow"><b>' + esc(plural(late.length, 'project')) + '</b> ' + (late.length === 1 ? 'is' : 'are') + ' past the end date but not completed: ' + esc(nameList(late, 3)) + '. Mark them completed, or change the end date.</span><button type="button" class="btn sm" data-act="teamLane" data-l="overdue">Show them</button></div>' : '';
+    region('teamBanner', loadingNote() + wkBan + staleBan + lateBan);
     var list = all.filter(function (p) {
       if (S.teamWho && norm(p.pic + ' ' + p.supportedBy).indexOf(S.teamWho) < 0) return false;
+      if (S.teamLane === 'overdue' && !isOverdue(p)) return false;
       return true;
     });
-    var lanes = S.teamLane === 'all' ? ['New Business', 'Execution'] : [S.teamLane];
+    var lanes = S.teamLane === 'all' || S.teamLane === 'overdue' ? ['New Business', 'Execution'] : [S.teamLane];
     if (!S.loaded.projects) { region('lanes', '<div class="card">' + skel(5) + '</div>'); return; }
     region('lanes', '<div class="lanes ' + (lanes.length > 1 ? 'two' : '') + '">' + lanes.map(function (l) {
       var ps = list.filter(function (p) { return p.lane === l; }).sort(function (a, b) { return (keyLiveIso(a) || '9999').localeCompare(keyLiveIso(b) || '9999'); });
@@ -1578,10 +1646,11 @@ VIEWS.team = {
 function wipCard(p) {
   var a = activity(p), d = staleDays(p), k = keyLiveIso(p);
   return '<article class="card wip-card">' + (canDelProject() ? '<button type="button" class="btn sm ghost icon-only card-del" data-act="delProject" data-id="' + esc(p.id) + '" aria-label="Delete project ' + esc(p.name) + '" title="Delete project">' + I.trash + '</button>' : '') + '<div class="client">' + esc(p.client + ' · ' + p.brand) + '</div><a class="name" href="#project-' + esc(p.id) + '">' + esc(p.name) + '</a>' +
-    '<div class="chips">' + statusChip(p.status) + '<span class="chip dim">' + esc(STAGES[(p.stage || 1) - 1]) + '</span>' + (k ? '<span class="chip num">Live ' + esc(fmtDate(k)) + '</span>' : '') +
+    '<div class="chips">' + statusChip(p.status) + '<span class="chip dim">' + esc(STAGES[(p.stage || 1) - 1]) + '</span>' + (k ? '<span class="chip num">Live ' + esc(fmtDate(k)) + '</span>' : '') + (isOverdue(p) ? '<span class="chip bad">Ended ' + esc(fmtDate(endIso(p))) + '</span>' : '') +
     (isStale(p) ? '<span class="chip warn">' + (d === null ? 'No update yet' : 'No update ' + d + 'd') + '</span>' : '') + (!String(p.pic || '').trim() ? '<span class="chip bad">No PIC</span>' : '') + '</div>' +
     (function () { var wk = weeks(p); return wk ? '<div class="wks">' + weekBlock('Previous week', wk.prev, 'prev') + weekBlock('Next week', wk.cur, 'cur') + '</div>' : ''; })() +
     '<div class="foot">' + avatars(p.pic + '\n' + p.supportedBy, 5) + '<span class="muted small grow">' + esc(a ? (a.src === 'wip' ? 'From WIP sheet' : authorName(a.author)) + (isIso(a.date) ? ' · ' + fmtDate(a.date) : '') : '') + '</span>' +
+    (isOverdue(p) ? '<button type="button" class="btn sm" data-act="markDone" data-id="' + esc(p.id) + '">' + I.check + 'Mark completed</button>' : '') +
     '<button type="button" class="btn sm" data-act="addUpdate" data-id="' + esc(p.id) + '">Update</button></div></article>';
 }
 function wipSummary() {
@@ -2683,6 +2752,11 @@ function foxCheck() {
       var late = daysBetween(d.date, t);
       foxEnqueue({ key: 'x:' + t + ':' + d.project.id + ':' + d.name, face: 'scared', badge: 'warn', title: late === 1 ? '1 day late' : late + ' days late', text: d.name + ' · ' + d.project.name, act: { kind: 'project', id: d.project.id, label: 'Open project' } });
     });
+    /* Friday to Sunday from 9 am: this week's WIP update for the viewer's own projects */
+    if (isWrapUp() && new Date().getHours() >= 9 && S.loaded.projects && S.loaded.updates) {
+      var owe = live().filter(isMine).filter(needsWeek);
+      if (owe.length) foxEnqueue({ key: 'wk:' + t, face: 'determined', badge: 'flag', title: 'WIP day: post your update', text: plural(owe.length, 'project') + (owe.length === 1 ? ' needs' : ' need') + ' this week\'s update: ' + nameList(owe, 2), act: { kind: 'project', id: owe[0].id, label: 'Open project' } });
+    }
     /* important email from someone else with no reply for 2 days */
     (S.inbox.items || []).filter(function (m) { return m.score >= 60 && !m.fromMe && now - m.when > 2 * 864e5 && now - m.when < 10 * 864e5; }).slice(0, 2).forEach(function (m) {
       foxEnqueue({ key: 'r:' + t + ':' + m.id, face: 'suspicious', badge: 'reply', title: 'Still waiting on your reply', text: m.subject, act: { kind: 'url', url: m.url, label: 'Open in Gmail' } });
@@ -2937,6 +3011,13 @@ function roamLoop(ts) {
   var k = document.getElementById('roamKuro');
   if (k) {
     var W = document.documentElement.clientWidth, kw = k.offsetWidth || 110, now = Date.now();
+    var lo = 8, hi = W - kw - 8;
+    if (W < 768) {
+      var br = document.querySelector('.topbar .brand'), me = document.getElementById('me');
+      if (br) lo = br.getBoundingClientRect().right + 6;
+      if (me) hi = me.getBoundingClientRect().left - kw - 6;
+      if (hi < lo) hi = lo;
+    }
     var asleep = !R.bub && foxQuiet() && S.ready;
     if (R.bub) { R.hop = 0; roamSprite('sit'); }
     else if (asleep) { R.hop = 0; roamSprite('sleep'); }
@@ -2945,14 +3026,15 @@ function roamLoop(ts) {
       var moving = now > R.pauseUntil;
       if (now > R.nextPause) { R.pauseUntil = now + 3000 + Math.random() * 4000; R.nextPause = R.pauseUntil + 15000 + Math.random() * 25000; moving = false; }
       if (moving) {
-        R.x += R.dir * dt * (R.dashUntil > now ? 0.24 : 0.06);
-        if (R.x > W - kw - 8) { R.x = W - kw - 8; R.dir = -1; }
-        if (R.x < 8) { R.x = 8; R.dir = 1; }
+        R.x += R.dir * dt * (R.dashUntil > now ? 0.24 : 0.06) * (W < 768 ? 0.6 : 1);
+        if (R.x > hi) { R.x = hi; R.dir = -1; }
+        if (R.x < lo) { R.x = lo; R.dir = 1; }
       }
       foxAct(R, now, dt, kw, moving, roamSprite);
     }
-    R.x = Math.max(8, Math.min(R.x, Math.max(8, W - kw - 8)));
-    k.style.transform = 'translateX(' + Math.round(R.x) + 'px)' + (R.hop ? ' translateY(' + (-R.hop).toFixed(1) + 'px)' : '');
+    R.x = Math.max(lo, Math.min(R.x, Math.max(lo, hi)));
+    var hop = R.hop ? R.hop * (W < 768 ? 0.25 : 1) : 0;
+    k.style.transform = 'translateX(' + Math.round(R.x) + 'px)' + (hop ? ' translateY(' + (-hop).toFixed(1) + 'px)' : '');
     var flip = document.getElementById('roamFlip'); if (flip) flip.style.transform = 'scaleX(' + (R.dir > 0 ? -1 : 1) + ')';
     roamPlaceBubble(W, kw);
   }
@@ -2964,11 +3046,29 @@ function roamPlaceBubble(W, kw) {
   var left = Math.max(8, Math.min(x + kw / 2 - bw / 2, W - bw - 8));
   b.style.left = Math.round(left) + 'px';
 }
-function roamBubble(show) {
+/* Friday to Sunday, once a day: Kuro reminds the viewer about their own projects that still need this week's update */
+function roamNudge() {
+  var R = S.roam;
+  if (!R.on || R.bub || !S.ready || !S.loaded.projects || !S.loaded.updates || !isWrapUp() || new Date().getHours() < 9) return;
+  if (foxGet('nudgeDay', '') === todayIso()) return;
+  var mine = live().filter(isMine).filter(needsWeek);
+  if (!mine.length) return;
+  foxPut('nudgeDay', todayIso());
+  roamBubble(true, { face: 'determined', badge: 'flag', title: 'It\'s WIP day!', text: plural(mine.length, 'of your projects', 'of your projects') + (mine.length === 1 ? ' needs' : ' need') + ' this week\'s update: ' + nameList(mine, 2) + '.',
+    acts: '<button type="button" class="btn sm primary" data-act="roamUpdate" data-id="' + esc(mine[0].id) + '">Post update</button><button type="button" class="btn sm ghost" data-act="roamTap">Later</button>', ms: 20000 });
+}
+function roamBubble(show, custom) {
   var R = S.roam, b = document.getElementById('roamBub'); if (!b) return;
   clearTimeout(R.bubT);
   R.bub = !!show;
   if (!show) { b.hidden = true; b.innerHTML = ''; return; }
+  if (custom) {
+    b.innerHTML = '<div class="fox-face"><img src="' + KURO_IMG[FOX_FACE[custom.face]] + '" alt=""><span class="fox-badge"><svg viewBox="0 0 24 24">' + FOX_BADGE[custom.badge] + '</svg></span></div>' +
+      '<div class="fox-msg"><b>' + esc(custom.title) + '</b><span>' + esc(custom.text) + '</span><div class="fox-acts">' + custom.acts + '</div></div>';
+    b.hidden = false;
+    R.bubT = setTimeout(function () { roamBubble(false); }, custom.ms || 9000);
+    return;
+  }
   var c = { face: foxQuiet() ? 'curious' : 'happy', badge: 'paw', title: foxQuiet() ? 'Mm? I was napping.' : 'Hi, I\'m Kuro!', text: S.isOwner && S.google !== false ? foxSummary() : 'I\'m keeping an eye on things here.' };
   b.innerHTML = '<div class="fox-face"><img src="' + KURO_IMG[FOX_FACE[c.face]] + '" alt=""><span class="fox-badge"><svg viewBox="0 0 24 24">' + FOX_BADGE[c.badge] + '</svg></span></div>' +
     '<div class="fox-msg"><b>' + esc(c.title) + '</b><span>' + esc(c.text) + '</span><div class="fox-acts">' +
@@ -3142,10 +3242,10 @@ function wipPush(p, prev, cur) {
   var sid = wipSheetIdNow();
   return wipRow(p).then(function (r) {
     var cells = [wipCell(prev), wipCell(cur)];
-    if (r.row >= 0) return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'M' + (r.row + 1) + ':N' + (r.row + 1), values: [cells] }).then(function () { return 'row ' + (r.row + 1); });
+    if (r.row >= 0) return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'M' + (r.row + 1) + ':N' + (r.row + 1), values: [cells] }).then(function () { wipStamp(r); return 'row ' + (r.row + 1); });
     var f = wipFreeRow(r.values, wipPart(p.lane));
     if (f.err) return Promise.reject(f.err);
-    return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (f.row + 1) + ':N' + (f.row + 1), values: [wipDetails(p, wipBudget(p, r)).concat(cells)] }).then(function () { return 'new row ' + (f.row + 1); });
+    return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (f.row + 1) + ':N' + (f.row + 1), values: [wipDetails(p, wipBudget(p, r)).concat(cells)] }).then(function () { wipStamp(r); return 'new row ' + (f.row + 1); });
   });
 }
 /* Write a project's details (columns A to L) into the WIP sheet. Old = the project before the edit, so a renamed project is still found.
@@ -3159,17 +3259,29 @@ function wipPushDetails(old, nu) {
     if (r.row >= 0) { var was = r.values[r.row] || [], ch = nu.changed || null; det = det.map(function (x, i) { return ch && !ch[i] ? (was[i] == null ? '' : was[i]) : x; }); }
     if (r.row >= 0 && nu.changed && !nu.changed.some(Boolean) && wipPartOf(r.values, r.row) === part) return Promise.resolve('no change');
     if (r.row >= 0 && wipPartOf(r.values, r.row) === part)
-      return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (r.row + 1) + ':L' + (r.row + 1), values: [det] }).then(function () { return 'row ' + (r.row + 1); });
+      return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (r.row + 1) + ':L' + (r.row + 1), values: [det] }).then(function () { wipStamp(r); return 'row ' + (r.row + 1); });
     var f = wipFreeRow(r.values, part);
     if (f.err) return Promise.reject(f.err);
     var v = r.row >= 0 ? r.values[r.row] || [] : [], mn = [v[12] || '', v[13] || ''];
     if (r.row < 0) { var wk = weeks(nu); if (wk) mn = [wipCell(wk.prev), wipCell(wk.cur)]; }
     return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (f.row + 1) + ':N' + (f.row + 1), values: [det.concat(mn)] }).then(function () {
+      wipStamp(r);
       if (r.row < 0) return 'new row ' + (f.row + 1);
       var blank = []; for (var k = 0; k < 14; k++) blank.push('');
       return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: sid, range: r.prefix + 'A' + (r.row + 1) + ':N' + (r.row + 1), values: [blank] }).then(function () { return 'moved to row ' + (f.row + 1); });
     });
   });
+}
+/* Keep the sheet's "Date: 27 Nov 2026" line (top rows, column A) at the day of the last write */
+function wipStamp(r) {
+  for (var i = 0; i < Math.min(6, r.values.length); i++) {
+    var c = clean((r.values[i] || [])[0]);
+    if (!/^date\s*:/i.test(c)) continue;
+    var d = new Date(), v = 'Date: ' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear();
+    if (c === v) return;
+    S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: wipSheetIdNow(), range: r.prefix + 'A' + (i + 1), values: [[v]] }).then(function () {}, function () {});
+    return;
+  }
 }
 function wipErrText(e) {
   var c = e && e.code;
@@ -3380,7 +3492,14 @@ function bfcImport(file) {
 }
 
 /* WIP sheet sync (owner) */
-function syncWip(btn) {
+/* Once a day, the first time Heng opens the app, pull the WIP sheet in the background */
+function autoSync() {
+  if (S.autoSync || !S.isOwner || !S.mcp || !S.db || !S.loaded.settings || !S.loaded.projects || !S.loaded.updates) return;
+  if (S.settings.lastSync === todayIso()) { S.autoSync = 'done'; return; }
+  S.autoSync = 'running';
+  setTimeout(function () { syncWip(null, true); }, 1200);
+}
+function syncWip(btn, auto) {
   if (!needDb()) return;
   var sid = sheetId(S.settings.wipSheetId || DEFAULT_WIP) || S.settings.wipSheetId || DEFAULT_WIP;
   var done = busy(btn, 'Syncing…');
@@ -3414,8 +3533,11 @@ function syncWip(btn) {
       }
     });
     ops.push(S.db.doc('settings/app').set(Object.assign({}, S.settings, { lastSync: t })));
-    return Promise.all(ops).then(function () { done(); toast('WIP sheet synced: ' + added + ' new, ' + changed + ' updated' + (skipped ? ', ' + skipped + ' deleted ones skipped' : '') + '.'); });
-  }).catch(function (e) { done(); toast(e && e.code && !/^(invalid_argument|quota_exceeded|resource_exhausted|revoked)$/.test(e.code) ? mcpErr(e, GSHEETS) : dbErr(e), true); });
+    return Promise.all(ops).then(function () {
+      done(); if (auto) S.autoSync = 'done';
+      if (!auto || added || changed) toast((auto ? 'WIP sheet synced for today: ' : 'WIP sheet synced: ') + added + ' new, ' + changed + ' updated' + (skipped ? ', ' + skipped + ' deleted ones skipped' : '') + '.');
+    });
+  }).catch(function (e) { done(); if (auto) { S.autoSync = 'failed'; return; } toast(e && e.code && !/^(invalid_argument|quota_exceeded|resource_exhausted|revoked)$/.test(e.code) ? mcpErr(e, GSHEETS) : dbErr(e), true); });
 }
 
 /* ------------------------------------------------------------ events */
@@ -3445,6 +3567,28 @@ var ACT = {
   refreshTimeline: function (el) { var p = projectById(el.getAttribute('data-id')); if (p) loadTimeline(p, true); },
   teamLane: function (el) { S.teamLane = el.getAttribute('data-l'); repaint(); },
   syncWip: function (el) { syncWip(el); },
+  copyNudge: function () { copyOut(nudgeText(), 'Friday WIP reminder', 'Reminder copied. Paste it in your team chat.'); },
+  markDone: function (el) {
+    var p = projectById(el.getAttribute('data-id') || S.route.id);
+    if (!p || p.lane === 'Past') return;
+    var e = endIso(p);
+    openSheet(sheetHead('Mark this project completed?', p.client + ' · ' + p.brand) + '<p><b>' + esc(p.name) + '</b> moves to Past projects and its status becomes Completed' + (e ? '. It ended ' + esc(fmtDate(e)) : '') + '.</p>' +
+      '<p class="small muted">Its row in the WIP sheet moves to Part 3, completed projects, with its updates. Updates, files and timelines stay in the app.</p>' +
+      '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Not yet</button><button type="button" class="btn primary" data-act="markDoneYes" data-id="' + esc(p.id) + '">' + I.check + 'Mark completed</button></div>');
+  },
+  markDoneYes: function (el) {
+    var p = projectById(el.dataset.id);
+    if (!p || !needDb()) return;
+    var d = busy(el, 'Saving…'), before = Object.assign({}, p), data = { lane: 'Past', status: 'Completed', updatedAt: Date.now() };
+    S.db.doc('projects/' + p.id).update(data).then(function () {
+      closeSheet();
+      if (!S.mcp) { toast(p.name + ' marked completed.'); return; }
+      toast(p.name + ' marked completed. Moving it in the WIP sheet…');
+      var nu = Object.assign({}, before, data, { changed: [false, false, false, false, false, false, false, true, false, false, false, false] });
+      wipPushDetails(before, nu).then(function (where) { toast(p.name + ' marked completed and moved in the WIP sheet (' + where + ').'); },
+        function (e) { toast(p.name + ' is completed in the app, but the WIP sheet was not changed. ' + wipErrText(e), true); });
+    }, function (e) { d(); toast(dbErr(e), true); });
+  },
   copyWip: function () {
     var text = wipSummary();
     var fallback = function () { openSheet(sheetHead('WIP summary', 'Team WIP') + '<p>Select all and copy.</p><textarea class="input" id="wipText" style="min-height:320px">' + esc(text) + '</textarea>'); var t = $('#wipText'); t.focus(); t.select(); };
@@ -3606,6 +3750,7 @@ var ACT = {
   bfcSignOut: function () { if (window.claude && window.claude.signOut) window.claude.signOut(); },
   bfcGoogleOff: function () { if (window.claude && window.claude.google) window.claude.google.disconnect(); },
   roamTap: function () { roamBubble(!S.roam.bub); },
+  roamUpdate: function (el) { roamBubble(false); updateSheet(el.getAttribute('data-id')); },
   roamHide: function () { foxPut('roamOff', todayIso()); roamSync(); toast('Kuro will be back tomorrow. Visit the Kuro tab any time.'); },
   foxTipOk: function () { foxPut('tip', true); foxClose(false); },
   foxHelp: function () { var F = S.fox; if (F.cur && F.cur.tip) return; if (F.cur && !F.cur.passing) F.queue.unshift(F.cur); F.cur = foxTip(); foxPaint(); },
