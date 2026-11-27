@@ -358,6 +358,10 @@ details.lesson[open] summary { display: none; }
 .pick input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
 .pick .em { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .pick-group { font: 600 11px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding: 10px 8px 4px; }
+.pick-tog { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; text-align: left; cursor: pointer; min-height: 32px; border-radius: 8px; }
+.pick-tog:hover { color: var(--text); }
+.pick-tog svg { width: 14px; height: 14px; transition: transform .15s; }
+.pick-tog[aria-expanded=false] svg { transform: rotate(-90deg); }
 .picked { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
 .picked:empty { display: none; }
 
@@ -519,6 +523,8 @@ body.roam-on .view { padding-bottom: calc(var(--tab) + 110px + env(safe-area-ins
 }
 .wip-card .foot { flex-wrap: wrap; }
 .banner .btn { flex: none; }
+.btn.upd-del { color: var(--muted2); }
+.btn.upd-del:hover { color: var(--bad); border-color: var(--bad-dim); }
 @media (max-width: 767px) { .banner { flex-wrap: wrap; } .banner .grow { flex: 1 1 220px; } }
 .banner.wkb { background: var(--accent-dim); color: var(--hi); border-color: rgba(79, 216, 255, 0.25); }
 .banner .who-list { display: block; margin-top: 4px; color: var(--muted2); }
@@ -571,6 +577,10 @@ var STAGE_NOTE = [
 ];
 var LANES = ['New Business', 'Execution', 'Past'];
 var DOMAIN = 'hybrid-ad.biz';
+/* Client teams shown as their own group in the people picker, gathered from Gmail like the company list */
+var CLIENT_ORGS = [{ name: 'Unilever', domain: 'unilever.com' }];
+function orgOf(email) { var d = String(email || '').split('@')[1] || ''; if (d === DOMAIN) return 'hybrid'; var c = CLIENT_ORGS.find(function (o) { return d === o.domain || d.slice(-(o.domain.length + 1)) === '.' + o.domain; }); return c ? c.name : 'other'; }
+function isEmail(s) { return /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(String(s || '')); }
 var GMAIL = 'Gmail', GCAL = 'Google Calendar', GSHEETS = 'Google Sheets', GDRIVE = 'Google Drive';
 var DEFAULT_WIP = '1G6HNdEBa-l8HzY_m-VNNicltY-mD__Pcqi1paCurpNo';
 var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1174,9 +1184,10 @@ function drawRooms() {
 }
 
 /* ------------------------------------------------------------ people (@hybrid-ad.biz) */
-function addPerson(email, name) {
+function addPerson(email, name, anyDomain) {
   email = String(email || '').toLowerCase().trim();
-  if (!new RegExp('@' + DOMAIN.replace('.', '\\.') + '$').test(email)) return;
+  if (!isEmail(email) || /resource\.calendar\.google\.com$|noreply|no-reply|donotreply|notification/.test(email)) return;
+  if (!anyDomain && orgOf(email) === 'other') return;
   if (email === (S.me.email || '').toLowerCase()) return;
   if (!S.collected[email]) S.collected[email] = { email: email, name: name || nameFromEmail(email) };
 }
@@ -1191,7 +1202,7 @@ function allPeople() {
   var map = {};
   (S.settings.team || []).forEach(function (p) { if (p.email) map[p.email.toLowerCase()] = { email: p.email.toLowerCase(), name: p.name || nameFromEmail(p.email), team: true }; });
   S.people.concat(Object.keys(S.collected).map(function (k) { return S.collected[k]; })).forEach(function (p) {
-    if (p && p.email && !map[p.email]) map[p.email] = { email: p.email, name: p.name || nameFromEmail(p.email), team: false };
+    if (p && p.email && !map[p.email]) map[p.email] = { email: p.email, name: p.name || nameFromEmail(p.email), team: false, org: orgOf(p.email) };
   });
   delete map[(S.me.email || '').toLowerCase()];
   return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return (b.team - a.team) || a.name.localeCompare(b.name); });
@@ -1204,7 +1215,7 @@ function savePeopleSoon() {
     var have = {}; S.people.forEach(function (p) { have[p.email] = 1; });
     var fresh = Object.keys(S.collected).filter(function (k) { return !have[k]; });
     if (!fresh.length) return;
-    var list = S.people.concat(fresh.map(function (k) { return S.collected[k]; })).slice(0, 400);
+    var list = S.people.concat(fresh.map(function (k) { return S.collected[k]; })).slice(0, 600);
     S.db.doc('owner/people').set({ list: list, updatedAt: todayIso() }).catch(function () {});
   }, 1500);
 }
@@ -1212,9 +1223,33 @@ function gatherPeople() {
   if (S.google === false) return Promise.resolve();
   if (!S.isOwner || S.gathering) return Promise.resolve();
   S.gathering = true;
-  return readTool(GMAIL, 'search_threads', { query: 'newer_than:90d {from:' + DOMAIN + ' to:' + DOMAIN + ' cc:' + DOMAIN + '}', pageSize: 50, view: 'THREAD_VIEW_METADATA_ONLY' }, { cache: { staleTime: 300000 } })
-    .then(function (p) { collectFromThreads((p && p.threads) || []); }, function () {})
+  var q = function (d, days) { return readTool(GMAIL, 'search_threads', { query: 'newer_than:' + days + 'd {from:' + d + ' to:' + d + ' cc:' + d + '}', pageSize: 50, view: 'THREAD_VIEW_METADATA_ONLY' }, { cache: { staleTime: 300000 } })
+    .then(function (p) { collectFromThreads((p && p.threads) || []); }, function () {}); };
+  return Promise.all([q(DOMAIN, 90)].concat(CLIENT_ORGS.map(function (o) { return q(o.domain, 365); })))
     .then(function () { S.gathering = false; });
+}
+/* Search all of Gmail for a name or email typed in the picker (anyone, any company) */
+var GSEARCH = {};
+function gmailPeople(q) {
+  q = String(q || '').trim().toLowerCase();
+  if (q.length < 3 || !S.mcp) return Promise.resolve([]);
+  if (GSEARCH[q]) return GSEARCH[q];
+  var term = q.replace(/["(){}]/g, ' ').trim();
+  GSEARCH[q] = readTool(GMAIL, 'search_threads', { query: '{from:(' + term + ') to:(' + term + ') cc:(' + term + ')}', pageSize: 25, view: 'THREAD_VIEW_METADATA_ONLY' }, { cache: { staleTime: 600000 } })
+    .then(function (p) {
+      var words = norm(q).split(' ').filter(Boolean), seen = {}, out = [];
+      ((p && p.threads) || []).forEach(function (t) { (t.messages || []).forEach(function (m) {
+        [m.sender].concat(m.toRecipients || [], m.ccRecipients || []).forEach(function (e) {
+          e = String(e || '').toLowerCase().trim();
+          if (!isEmail(e) || seen[e] || e === (S.me.email || '').toLowerCase() || /resource\.calendar|noreply|no-reply|donotreply/.test(e)) return;
+          var hay = norm(e.replace(/@/, ' '));
+          if (!words.every(function (w) { return hay.indexOf(w) >= 0; })) return;
+          seen[e] = 1; out.push({ email: e, name: nameFromEmail(e), org: orgOf(e), found: true });
+        });
+      }); });
+      return out;
+    }, function () { delete GSEARCH[q]; return []; });
+  return GSEARCH[q];
 }
 
 /* ------------------------------------------------------------ shell */
@@ -1597,6 +1632,12 @@ function weekBlock(label, x, cls) {
 function canDelProject() { return !!(S.db && (S.isOwner || S.canEdit)); }
 function removedKeys() { var m = {}; (S.removed || []).forEach(function (r) { if (r.key) m[r.key] = 1; }); return m; }
 function canDelUpdate(u) { return !!(u && u.id && S.db && (S.isOwner || S.canEdit || (u.author && u.author === S.me.id))); }
+/* The update on a WIP card: an app post (its author, owner, editors) or the WIP sheet's columns (owner, editors, the project's people) */
+function canDelCardUpdate(p) {
+  var a = p && activity(p); if (!a || !S.db) return false;
+  if (a.src === 'app') return canDelUpdate(S.updates.find(function (x) { return x.id === a.id; }));
+  return canDelProject() || isMine(p);
+}
 function delUpdateBtn(u) { return canDelUpdate(u) ? '<button type="button" class="btn sm ghost icon-only" data-act="delUpdate" data-id="' + esc(u.id) + '" aria-label="Delete this update" title="Delete this update">' + I.trash + '</button>' : ''; }
 function updateItem(date, who, done, next, link, rec) {
   var u = safeUrl(link);
@@ -1650,6 +1691,7 @@ function wipCard(p) {
     (isStale(p) ? '<span class="chip warn">' + (d === null ? 'No update yet' : 'No update ' + d + 'd') + '</span>' : '') + (!String(p.pic || '').trim() ? '<span class="chip bad">No PIC</span>' : '') + '</div>' +
     (function () { var wk = weeks(p); return wk ? '<div class="wks">' + weekBlock('Previous week', wk.prev, 'prev') + weekBlock('Next week', wk.cur, 'cur') + '</div>' : ''; })() +
     '<div class="foot">' + avatars(p.pic + '\n' + p.supportedBy, 5) + '<span class="muted small grow">' + esc(a ? (a.src === 'wip' ? 'From WIP sheet' : authorName(a.author)) + (isIso(a.date) ? ' · ' + fmtDate(a.date) : '') : '') + '</span>' +
+    (canDelCardUpdate(p) ? '<button type="button" class="btn sm ghost upd-del" data-act="delCardUpdate" data-id="' + esc(p.id) + '" aria-label="Delete this update on ' + esc(p.name) + '">' + I.trash + 'Delete update</button>' : '') +
     (isOverdue(p) ? '<button type="button" class="btn sm" data-act="markDone" data-id="' + esc(p.id) + '">' + I.check + 'Mark completed</button>' : '') +
     '<button type="button" class="btn sm" data-act="addUpdate" data-id="' + esc(p.id) + '">Update</button></div></article>';
 }
@@ -3328,10 +3370,10 @@ function trainingSheet(type) {
 /* People picker (dropdown with checkboxes) */
 var PICKERS = {};
 function pickerHtml(id, selected) {
-  PICKERS[id] = { sel: new Set(selected || []), q: '' };
+  PICKERS[id] = { sel: new Set(selected || []), q: '', open: {}, found: [], foundQ: '' };
   return '<div class="picker" id="' + id + '"><button type="button" class="picker-btn" data-act="pickerToggle" data-p="' + id + '" aria-expanded="false"><span class="grow" data-role="sum">Pick people</span>' + I.down + '</button>' +
     '<div class="picked" data-role="chips"></div><div class="picker-panel" data-role="panel" hidden>' +
-    '<label class="sr" for="' + id + '-q">Search people</label><input class="input" id="' + id + '-q" type="search" placeholder="Search names or @' + DOMAIN + ' emails" data-input="pickerQ" data-p="' + id + '">' +
+    '<label class="sr" for="' + id + '-q">Search people</label><input class="input" id="' + id + '-q" type="search" placeholder="Search a name or email in your Gmail" data-input="pickerQ" data-p="' + id + '">' +
     '<div class="row wrap" style="gap:6px;margin:8px 0 2px"><button type="button" class="btn sm" data-act="pickerTeam" data-p="' + id + '">Whole team</button><button type="button" class="btn sm ghost" data-act="pickerClear" data-p="' + id + '">Clear</button></div>' +
     '<div data-role="list"></div></div></div>';
 }
@@ -3340,12 +3382,32 @@ function drawPicker(id) {
   var people = allPeople(), q = norm(st.q);
   var list = people.filter(function (p) { return !q || norm(p.name + ' ' + p.email).indexOf(q) >= 0; });
   var typed = String(st.q || '').trim().toLowerCase();
-  var canAdd = new RegExp('^[a-z0-9._%+-]+@' + DOMAIN.replace('.', '\\.') + '$').test(typed) && !people.some(function (p) { return p.email === typed; });
+  var canAdd = isEmail(typed) && !people.some(function (p) { return p.email === typed; });
   var row = function (p) { return '<label class="pick"><input type="checkbox" data-change="pick" data-p="' + id + '" value="' + esc(p.email) + '"' + (st.sel.has(p.email) ? ' checked' : '') + '><span class="av">' + esc(initials(p.name)) + '</span><span class="grow"><b>' + esc(p.name) + '</b><span class="em">' + esc(p.email) + '</span></span></label>'; };
   var team = list.filter(function (p) { return p.team; }), rest = list.filter(function (p) { return !p.team; });
+  var has = {}; people.forEach(function (p) { has[p.email] = 1; });
+  var found = (st.found && st.foundQ === typed ? st.found : []).filter(function (p) { return !has[p.email]; });
+  var group = function (key, label) {
+    var ps = rest.filter(function (p) { return (p.org || orgOf(p.email)) === key; });
+    if (!ps.length) return '';
+    var open = !!q || st.open[key] === true;
+    return '<button type="button" class="pick-group pick-tog" data-act="pickerGroup" data-p="' + id + '" data-g="' + esc(key) + '" aria-expanded="' + open + '"><span class="grow">' + esc(label) + ' · ' + ps.length + '</span>' + I.down + '</button>' + (open ? ps.map(row).join('') : '');
+  };
   $('[data-role=list]', el).innerHTML = (canAdd ? '<label class="pick"><input type="checkbox" data-change="pick" data-p="' + id + '" value="' + esc(typed) + '"><span class="av">+</span><span class="grow"><b>Add ' + esc(typed) + '</b></span></label>' : '') +
-    (team.length ? '<div class="pick-group">Your team</div>' + team.map(row).join('') : '') + (rest.length ? '<div class="pick-group">Everyone at ' + DOMAIN + '</div>' + rest.map(row).join('') : '') +
-    (!list.length && !canAdd ? '<div class="empty">' + (S.gathering ? 'Finding people in your Gmail…' : 'No one matches. Type a full @' + DOMAIN + ' email to add them.') + '</div>' : '');
+    (team.length ? '<div class="pick-group">Your team</div>' + team.map(row).join('') : '') +
+    CLIENT_ORGS.map(function (o) { return group(o.name, o.name + ' team'); }).join('') +
+    group('hybrid', 'Everyone at ' + DOMAIN) + group('other', 'Other people you added') +
+    (found.length ? '<div class="pick-group">Found in your Gmail</div>' + found.map(row).join('') : '') +
+    (typed.length >= 3 && st.searching ? '<div class="empty small">Searching your Gmail for "' + esc(st.q.trim()) + '"…</div>' : '') +
+    (!list.length && !canAdd && !found.length && !st.searching ? '<div class="empty">' + (S.gathering ? 'Finding people in your Gmail…' : typed.length >= 3 ? 'No one in your Gmail matches. Type their full email to add them.' : 'Type a name or email to search your Gmail.') + '</div>' : '');
+  if (typed.length >= 3 && st.foundQ !== typed && !st.searching) {
+    clearTimeout(st.t);
+    st.t = setTimeout(function () {
+      if (st.q.trim().toLowerCase() !== typed) return;
+      st.searching = true; drawPicker(id);
+      gmailPeople(typed).then(function (r) { st.searching = false; st.found = r; st.foundQ = typed; drawPicker(id); });
+    }, 450);
+  }
   var n = st.sel.size;
   $('[data-role=sum]', el).textContent = n ? n + (n === 1 ? ' person picked' : ' people picked') : 'Pick people';
   $('[data-role=chips]', el).innerHTML = Array.from(st.sel).map(function (e) { return '<button type="button" class="chip" data-act="pickerRemove" data-p="' + id + '" data-e="' + esc(e) + '" aria-label="Remove ' + esc(personName(e)) + '">' + esc(personName(e)) + ' ✕</button>'; }).join('');
@@ -3367,7 +3429,7 @@ function eventSheet(preset) {
   ROOMSEL.email = preset.room || '';
   drawPicker('evPick'); drawRooms();
   if (preset.focusRoom) { var rf = $('#evRoomField'); if (rf && rf.scrollIntoView) rf.scrollIntoView({ block: 'center' }); }
-  if (!allPeople().length) gatherPeople().then(function () { drawPicker('evPick'); });
+  gatherPeople().then(function () { drawPicker('evPick'); });
 }
 function saveEvent(form, btn) {
   var o = formObj(form), guests = Array.from((PICKERS.evPick || { sel: new Set() }).sel);
@@ -3713,6 +3775,32 @@ var ACT = {
       (txt ? '<div class="next-box" style="margin:10px 0">' + esc(txt.length > 220 ? txt.slice(0, 220) + '…' : txt) + '</div>' : '') +
       '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Keep it</button><button type="button" class="btn primary" data-act="delUpdateYes" data-id="' + esc(u.id) + '">' + I.trash + 'Delete update</button></div>');
   },
+  delCardUpdate: function (el) {
+    var p = projectById(el.getAttribute('data-id')), a = p && activity(p);
+    if (!a || !canDelCardUpdate(p)) return;
+    var txt = [a.done, a.next].filter(Boolean).join('\n');
+    openSheet(sheetHead('Delete this update?', p.name) + '<p>This removes the weekly update shown on this card' + (a.src === 'app' ? ' (posted by ' + esc(authorName(a.author)) + (isIso(a.date) ? ' on ' + esc(fmtDate(a.date)) : '') + ')' : ' (from the WIP sheet)') + ' for everyone, and clears its Previous week and Next week cells in the WIP sheet.</p>' +
+      (txt ? '<div class="next-box" style="margin:10px 0;white-space:pre-line">' + esc(txt.length > 260 ? txt.slice(0, 260) + '…' : txt) + '</div>' : '') +
+      '<p class="small muted">The project stays. Only the update is removed, and it cannot be undone.</p>' +
+      '<div class="sheet-foot"><button type="button" class="btn" data-act="closeSheet">Keep it</button><button type="button" class="btn primary" data-act="delCardUpdateYes" data-id="' + esc(p.id) + '">' + I.trash + 'Delete update</button></div>');
+  },
+  delCardUpdateYes: function (el) {
+    var p = projectById(el.dataset.id), a = p && activity(p);
+    if (!a || !canDelCardUpdate(p) || !needDb()) return;
+    var d = busy(el, 'Deleting…'), ops = [], w = p.wip || {};
+    if (a.src === 'app') ops.push(S.db.doc('updates/' + a.id).delete());
+    if (w.done || w.next || w.prevDone || w.prevNext) ops.push(S.db.doc('projects/' + p.id).update({ wip: { done: '', next: '', prevDone: '', prevNext: '', syncedAt: todayIso() }, updatedAt: Date.now() }));
+    Promise.all(ops).then(function () {
+      closeSheet();
+      if (!S.mcp) { toast('Update deleted'); return; }
+      toast('Update deleted. Clearing it in the WIP sheet…');
+      wipRow(p).then(function (r) {
+        if (r.row < 0) return 'not in sheet';
+        return S.mcp.callTool(GSHEETS, 'update_values', { spreadsheetId: wipSheetIdNow(), range: r.prefix + 'M' + (r.row + 1) + ':N' + (r.row + 1), values: [['', '']] }).then(function () { wipStamp(r); return 'row ' + (r.row + 1); });
+      }).then(function (where) { toast(where === 'not in sheet' ? 'Update deleted. This project has no row in the WIP sheet.' : 'Update deleted here and in the WIP sheet (' + where + ').'); },
+        function (e) { toast('Update deleted in the app, but the WIP sheet was not changed. ' + wipErrText(e), true); });
+    }, function (e) { d(); toast(dbErr(e), true); });
+  },
   delUpdateYes: function (el) {
     var id = el.dataset.id, u = S.updates.find(function (x) { return x.id === id; });
     if (!canDelUpdate(u) || !needDb()) return;
@@ -3729,6 +3817,7 @@ var ACT = {
   newLesson: function () { trainingSheet(AM); },
   pickerToggle: function (el) { var pid = el.getAttribute('data-p'), panel = $('#' + pid + ' [data-role=panel]'); panel.hidden = !panel.hidden; el.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) { drawPicker(pid); var q = $('#' + pid + '-q'); if (q && window.innerWidth >= 768) q.focus(); } },
   pickerTeam: function (el) { var pid = el.getAttribute('data-p'); (S.settings.team || []).forEach(function (t) { PICKERS[pid].sel.add(String(t.email).toLowerCase()); }); if (!(S.settings.team || []).length) toast('Pick your team first in the Team button on the calendar.'); drawPicker(pid); },
+  pickerGroup: function (el) { var pid = el.getAttribute('data-p'), g = el.getAttribute('data-g'), st = PICKERS[pid]; if (!st) return; st.open[g] = el.getAttribute('aria-expanded') === 'false'; drawPicker(pid); },
   pickerClear: function (el) { var pid = el.getAttribute('data-p'); PICKERS[pid].sel.clear(); drawPicker(pid); },
   foxTap: function () {
     var F = S.fox; if (F.cur && !F.cur.passing) return;
@@ -3786,7 +3875,7 @@ document.addEventListener('change', function (e) {
   if (k === 'jump' && el.value) { location.hash = 'project-' + el.value; }
   else if (k === 'teamWho') { S.teamWho = el.value; repaint(); }
   else if (k === 'evSlot') drawRooms();
-  else if (k === 'pick') { var st = PICKERS[el.getAttribute('data-p')]; if (st) { if (el.checked) st.sel.add(el.value); else st.sel.delete(el.value); if (el.checked && !allPeople().some(function (p) { return p.email === el.value; })) addPerson(el.value); st.q = el.checked && st.q && el.value === st.q.trim().toLowerCase() ? '' : st.q; var q = $('#' + el.getAttribute('data-p') + '-q'); if (q) q.value = st.q; drawPicker(el.getAttribute('data-p')); } }
+  else if (k === 'pick') { var st = PICKERS[el.getAttribute('data-p')]; if (st) { if (el.checked) st.sel.add(el.value); else st.sel.delete(el.value); if (el.checked && !allPeople().some(function (p) { return p.email === el.value; })) { addPerson(el.value, '', true); savePeopleSoon(); } st.q = el.checked && st.q && el.value === st.q.trim().toLowerCase() ? '' : st.q; var q = $('#' + el.getAttribute('data-p') + '-q'); if (q) q.value = st.q; drawPicker(el.getAttribute('data-p')); } }
 });
 function bsDropZone(e) { return e.target && e.target.closest ? e.target.closest('.bs-drop') : null; }
 document.addEventListener('dragover', function (e) { var z = bsDropZone(e); if (z && e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) { e.preventDefault(); z.classList.add('over'); } });
