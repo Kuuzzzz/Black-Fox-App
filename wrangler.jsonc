@@ -14,7 +14,7 @@
   ],
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
-    "OWNER_EMAIL": "sokheng@hybrid-ad.biz,vengchhan2302@gmail.com",   // owner: sees the private inbox, calendar, AM Brief and Kuro reminders
+    "OWNER_EMAIL": "sokheng@hybrid-ad.biz,vengchhan2302@gmail.com,vengchhay@hybrid-ad.biz",   // owner: sees the private inbox, calendar, AM Brief and Kuro reminders
     "ADMIN_EMAILS": "",                       // comma-separated: people who can see budgets and edit Training
     "AUTH_MODE": "accounts",                // people create their own account (name, email, password)
     "ALLOWED_DOMAIN": "",                     // empty = any email may sign in
